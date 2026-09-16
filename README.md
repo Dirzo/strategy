@@ -1,5 +1,3 @@
-# strategy
-strategy for strategy 
 # Hexfall: Lanes & Legions
 
 A turn-based hex strategy game for the browser that mixes base building and a two-resource economy (Warcraft 2), terrain-based tactical combat with day/night and zones of control (Wesnoth), districts with adjacency bonuses and a small tech tree (Civ 6), and champions, lanes, minion waves, towers and jungle camps (League of Legends).

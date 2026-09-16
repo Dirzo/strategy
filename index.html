@@ -1,0 +1,1479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hexfall: Lanes & Legions</title>
+<meta name="description" content="A turn-based hex strategy game with champions, lanes, bases and tactical combat.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏰</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=Alegreya+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --wood:#271d15; --wood2:#33261b; --wood3:#463424; --line:#5b4530;
+  --brass:#d0a955; --brass-dim:#8e7340;
+  --parch:#efe4ca; --muted:#b9a88a; --faint:#8a7a62;
+  --blue:#4f8fdc; --red:#d4513c; --good:#8fd97f; --bad:#ef7a64;
+  --display:"IM Fell English SC", "Iowan Old Style", Georgia, serif;
+  --body:"Alegreya Sans", "Segoe UI", system-ui, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--wood);color:var(--parch);font-family:var(--body);font-size:15px;line-height:1.4;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+#app{display:grid;grid-template-rows:auto 1fr;height:100dvh}
+
+/* top bar */
+.bar{display:flex;align-items:center;gap:18px;padding:8px 14px;background:linear-gradient(#3a2b1e,#2b2017);border-bottom:2px solid var(--brass-dim);min-width:0}
+.brand{font-family:var(--display);font-size:24px;letter-spacing:.02em;color:var(--brass);white-space:nowrap;line-height:1}
+.res{display:flex;gap:14px;align-items:baseline;white-space:nowrap}
+.res b{font-size:18px;font-weight:800}
+.res small{color:var(--good);font-weight:500}
+.clock{display:flex;align-items:center;gap:8px;color:var(--muted);white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.clock .sun{font-size:18px}
+.clock b{color:var(--parch);font-weight:700}
+.spacer{flex:1}
+.btn{background:var(--wood3);border:1px solid var(--line);border-radius:6px;padding:6px 12px}
+.btn:hover{border-color:var(--brass-dim)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:linear-gradient(#e0bb62,#b58d3c);color:#23180e;border-color:#f0d58e;font-weight:800;padding:8px 18px}
+.btn.primary:hover{filter:brightness(1.07)}
+.kbd{display:inline-block;min-width:18px;padding:0 4px;border:1px solid currentColor;border-radius:4px;font-size:11px;line-height:16px;text-align:center;opacity:.7;margin-left:6px}
+
+/* main */
+main{display:grid;grid-template-columns:1fr 340px;min-height:0}
+.stage{position:relative;min-width:0;min-height:0;background:#1c2a2c}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+#panel{background:var(--wood2);border-left:2px solid var(--brass-dim);overflow-y:auto;padding:14px 14px 24px}
+#log{position:absolute;left:10px;bottom:10px;max-width:min(440px,70%);background:rgba(30,22,15,.86);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;cursor:pointer}
+#log:empty{display:none}
+#log p{margin:2px 0;color:var(--muted)}
+#log p.blue{color:#a9cdf6}#log p.red{color:#f1ab9d}
+#log .hint{font-size:11px;color:var(--faint)}
+#tip{position:absolute;pointer-events:none;background:rgba(30,22,15,.94);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:13px;display:none;white-space:nowrap;z-index:2}
+#banner{position:absolute;left:50%;top:14px;transform:translateX(-50%);background:rgba(30,22,15,.9);border:1px solid var(--brass-dim);border-radius:999px;padding:6px 18px;font-family:var(--display);font-size:19px;pointer-events:none;opacity:0;transition:opacity .25s}
+#banner.show{opacity:1}
+.zoom{position:absolute;right:10px;bottom:10px;display:flex;flex-direction:column;gap:6px}
+.zoom .btn{width:36px;height:36px;padding:0;font-size:18px;background:rgba(58,43,30,.92)}
+
+/* panel content */
+.sel-head{display:flex;gap:12px;align-items:center;margin-bottom:10px}
+.sel-icon{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;font-size:28px;background:var(--wood);border:3px solid var(--faint);flex:none}
+.sel-icon.blue{border-color:var(--blue)}.sel-icon.red{border-color:var(--red)}.sel-icon.is-champ{box-shadow:0 0 0 2px var(--brass)}
+.sel-head h2{font-family:var(--display);font-weight:400;font-size:22px;margin:0;line-height:1.1}
+.sel-head .sub{color:var(--muted);font-size:13px}
+h3{font-family:var(--display);font-weight:400;font-size:18px;color:var(--brass);margin:18px 0 6px;border-bottom:1px solid var(--line);padding-bottom:3px}
+.meter{height:8px;background:#1a130d;border-radius:4px;overflow:hidden;margin:4px 0 2px}
+.meter i{display:block;height:100%}
+.row{display:flex;justify-content:space-between;gap:8px;font-size:14px}
+.row span:first-child{color:var(--muted)}
+p.note{color:var(--muted);font-size:14px;margin:6px 0}
+.cards{display:grid;gap:8px}
+.card{display:grid;grid-template-columns:34px 1fr auto;gap:2px 10px;align-items:center;text-align:left;background:var(--wood3);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+.card:hover:not(:disabled){border-color:var(--brass)}
+.card:disabled{opacity:.5;cursor:not-allowed}
+.card .ic{font-size:24px;grid-row:span 2;text-align:center}
+.card .nm{font-weight:700}
+.card .cost{font-weight:700;color:var(--brass);white-space:nowrap;text-align:right}
+.card .ds{grid-column:2 / 4;color:var(--muted);font-size:13px;line-height:1.3}
+.card.on{border-color:var(--brass);background:#574029}
+.card.done{opacity:.6}
+.ab{grid-template-columns:34px 1fr auto}
+.ab .ic{font-family:var(--display);font-size:20px;width:30px;height:30px;border-radius:6px;background:var(--wood);border:1px solid var(--brass-dim);display:grid;place-items:center;color:var(--brass)}
+.tabs{display:flex;gap:4px;margin:12px 0 8px}
+.tabs button{flex:1;background:transparent;border:1px solid var(--line);border-radius:6px;padding:6px 4px;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--wood3);color:var(--parch);border-color:var(--brass-dim)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:var(--wood);border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:13px}
+.mode-bar{background:#4b3a1f;border:1px solid var(--brass-dim);border-radius:8px;padding:8px 10px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:14px}
+ul.plain{margin:6px 0;padding-left:18px;color:var(--muted);font-size:14px}
+ul.plain li{margin:3px 0}
+
+/* modals */
+.modal{position:fixed;inset:0;background:rgba(12,9,6,.72);display:none;place-items:center;z-index:10;padding:16px}
+.modal.open{display:grid}
+.sheet{background:var(--wood2);border:2px solid var(--brass-dim);border-radius:12px;max-width:760px;width:100%;max-height:92dvh;overflow-y:auto;padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.sheet.small{max-width:440px}
+.title{font-family:var(--display);font-size:clamp(44px,8vw,76px);line-height:.95;color:var(--brass);margin:0}
+.tagline{font-family:var(--display);font-size:22px;color:var(--parch);margin:4px 0 12px}
+.sheet p{max-width:62ch}
+.champs{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:14px 0}
+.champ{display:flex;flex-direction:column;justify-content:flex-start;background:var(--wood3);border:2px solid var(--line);border-radius:10px;padding:12px 14px;text-align:left;width:100%}
+.champ[aria-pressed="true"]{border-color:var(--brass);background:#553f27}
+.champ .top{display:flex;gap:10px;align-items:center}
+.champ .top span{font-size:34px}
+.champ h4{margin:0;font-family:var(--display);font-weight:400;font-size:21px}
+.champ .role{color:var(--brass);font-size:13px}
+.champ ol{margin:8px 0 0;padding-left:0;list-style:none;font-size:13px;color:var(--muted)}
+.champ ol b{color:var(--parch)}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.vs{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
+.vs > div{background:var(--wood3);border-radius:8px;padding:10px}
+.vs h4{margin:0 0 4px;font-size:16px}
+.big{font-size:22px;font-weight:800}
+.weps{display:flex;gap:8px;flex-wrap:wrap}
+.weps button[aria-pressed="true"]{border-color:var(--brass);background:#553f27}
+.help h3{margin-top:14px}
+
+@media (max-width: 820px){
+  main{grid-template-columns:1fr;grid-template-rows:1fr auto}
+  #panel{border-left:0;border-top:2px solid var(--brass-dim);max-height:40dvh}
+  .bar{gap:10px;padding:6px 10px;flex-wrap:wrap}
+  .brand{font-size:20px}
+  .clock .label{display:none}
+  #log{max-width:calc(100% - 70px)}
+}
+@media (prefers-reduced-motion: reduce){ #banner{transition:none} }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="bar">
+    <div class="brand">Hexfall</div>
+    <div class="res" aria-live="polite">
+      <span title="Gold">🪙 <b id="gold">0</b> <small id="goldInc"></small></span>
+      <span title="Lumber">🪵 <b id="lumber">0</b> <small id="lumInc"></small></span>
+    </div>
+    <div class="clock" id="clock"></div>
+    <div class="spacer"></div>
+    <button class="btn" id="helpBtn" aria-label="How to play">?</button>
+    <button class="btn primary" id="endBtn">End turn</button>
+  </header>
+  <main>
+    <div class="stage" id="stage">
+      <canvas id="map" aria-label="Battle map"></canvas>
+      <div id="banner"></div>
+      <div id="tip"></div>
+      <div id="log" role="log" tabindex="0"></div>
+      <div class="zoom">
+        <button class="btn" id="zin" aria-label="Zoom in">+</button>
+        <button class="btn" id="zout" aria-label="Zoom out">−</button>
+        <button class="btn" id="zfit" aria-label="Fit map">⤢</button>
+      </div>
+    </div>
+    <aside id="panel" aria-live="polite"></aside>
+  </main>
+</div>
+<div class="modal" id="modal" role="dialog" aria-modal="true"><div class="sheet" id="sheet"></div></div>
+<script>
+/* ================= HEXFALL CORE ================= */
+'use strict';
+const W = 25, H = 15;
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+let RNG = Math.random;
+
+const key = (c,r) => r*W + c;
+const inB = (c,r) => c>=0 && r>=0 && c<W && r<H;
+const DIRS_E = [[1,0],[0,-1],[-1,-1],[-1,0],[-1,1],[0,1]];
+const DIRS_O = [[1,0],[1,-1],[0,-1],[-1,0],[0,1],[1,1]];
+function nbrs(c,r){const d=(r&1)?DIRS_O:DIRS_E,o=[];for(const[dc,dr]of d){const nc=c+dc,nr=r+dr;if(inB(nc,nr))o.push([nc,nr]);}return o;}
+function toCube(c,r){const x=c-(r-(r&1))/2;return[x,-x-r,r];}
+function dist(c1,r1,c2,r2){const a=toCube(c1,r1),b=toCube(c2,r2);return Math.max(Math.abs(a[0]-b[0]),Math.abs(a[1]-b[1]),Math.abs(a[2]-b[2]));}
+const udist = (a,b) => dist(a.c,a.r,b.c,b.r);
+function cubeRound(x,y,z){let rx=Math.round(x),ry=Math.round(y),rz=Math.round(z);const dx=Math.abs(rx-x),dy=Math.abs(ry-y),dz=Math.abs(rz-z);if(dx>dy&&dx>dz)rx=-ry-rz;else if(dy>dz)ry=-rx-rz;else rz=-rx-ry;return[rx,ry,rz];}
+function fromCube(x,z){return[x+(z-(z&1))/2,z];}
+function hexLine(a,b){const A=toCube(a[0],a[1]),B=toCube(b[0],b[1]);const n=dist(a[0],a[1],b[0],b[1]);const out=[];for(let i=0;i<=n;i++){const t=n?i/n:0;const p=cubeRound(A[0]+(B[0]-A[0])*t+1e-6,A[1]+(B[1]-A[1])*t+1e-6,A[2]+(B[2]-A[2])*t-2e-6);out.push(fromCube(p[0],p[2]));}return out;}
+function within(c,r,rad){const o=[];for(let rr=r-rad;rr<=r+rad;rr++)for(let cc=c-rad-1;cc<=c+rad+1;cc++)if(inB(cc,rr)&&dist(c,r,cc,rr)<=rad)o.push([cc,rr]);return o;}
+function mirror(c,r){return (r&1)?[W-2-c,r]:[W-1-c,r];}
+const xOf = (c,r) => c + ((r&1)?0.5:0);
+
+const TER = {
+  grass:   {name:'Grassland',     move:1,  def:40, col:'#7aa052'},
+  forest:  {name:'Forest',        move:2,  def:60, col:'#46723c'},
+  hills:   {name:'Hills',         move:2,  def:50, col:'#a8935c'},
+  mountain:{name:'Mountains',     move:99, def:70, col:'#857d74'},
+  shallow: {name:'Shallow water', move:3,  def:20, col:'#5a93b5'},
+  road:    {name:'Road',          move:1,  def:40, col:'#c9ae7c'},
+  mine:    {name:'Gold mine',     move:1,  def:40, col:'#7aa052'},
+};
+
+const PHASES = [
+  {name:'Dawn',         law:0,   tint:'rgba(255,160,90,0.10)'},
+  {name:'Morning',      law:25,  tint:null},
+  {name:'Afternoon',    law:25,  tint:null},
+  {name:'Dusk',         law:0,   tint:'rgba(190,80,60,0.16)'},
+  {name:'First watch',  law:-25, tint:'rgba(16,24,70,0.40)'},
+  {name:'Second watch', law:-25, tint:'rgba(16,24,70,0.40)'},
+];
+
+const DEF = {
+  peasant: {name:'Peasant',hp:18,mp:5,melee:[3,2],cost:[15,0],worker:1,align:'lawful',icon:'⛏️',lvl:0,desc:'Gathers 8 gold standing on a mine, or 4 lumber in a forest.'},
+  footman: {name:'Footman',hp:36,mp:5,melee:[7,3],cost:[20,0],align:'lawful',icon:'🛡️',lvl:1,soldier:1,desc:'Sturdy line infantry.'},
+  archer:  {name:'Archer',hp:28,mp:5,melee:[3,2],ranged:[6,3],cost:[25,0],align:'lawful',icon:'🏹',lvl:1,soldier:1,desc:'Shoots without taking melee retaliation.'},
+  knight:  {name:'Knight',hp:44,mp:8,melee:[10,2],cost:[30,20],align:'lawful',icon:'🐎',lvl:1,soldier:1,mounted:1,desc:'Fast, hard-hitting cavalry.'},
+  peon:    {name:'Peon',hp:20,mp:5,melee:[3,2],cost:[15,0],worker:1,align:'chaotic',icon:'⛏️',lvl:0,desc:'Gathers gold and lumber.'},
+  grunt:   {name:'Grunt',hp:40,mp:5,melee:[9,2],cost:[20,0],align:'chaotic',icon:'💪',lvl:1,soldier:1,desc:'Brutal melee warrior.'},
+  axe:     {name:'Axe thrower',hp:30,mp:5,melee:[4,2],ranged:[7,2],cost:[25,0],align:'chaotic',icon:'🪓',lvl:1,soldier:1,desc:'Throws axes from a distance.'},
+  wolf:    {name:'Wolf rider',hp:34,mp:8,melee:[5,3],cost:[25,15],align:'chaotic',icon:'🐺',lvl:1,soldier:1,mounted:1,desc:'Fast raider.'},
+  mminion: {name:'Melee minion',hp:20,mp:3,melee:[5,2],align:'neutral',icon:'⚔️',lvl:0,minion:1,desc:'Marches down its lane on its own.'},
+  rminion: {name:'Caster minion',hp:14,mp:3,melee:[2,1],ranged:[5,2],align:'neutral',icon:'✴️',lvl:0,minion:1,desc:'Marches down its lane on its own.'},
+  keep:    {name:'Keep',hp:110,struct:1,shot:12,range:2,icon:'🏰',lvl:2,desc:'Heals adjacent allies and shoots enemies within 2 hexes.'},
+  tower:   {name:'Lane tower',hp:70,struct:1,shot:9,range:2,icon:'🗼',lvl:1,desc:'Shoots enemies within 2 hexes, minions first.'},
+  gtower:  {name:'Guard tower',hp:40,struct:1,shot:7,range:2,icon:'🛖',lvl:1,desc:'Shoots enemies within 2 hexes.'},
+  barracks:{name:'Barracks',hp:45,struct:1,icon:'⛺',lvl:1,desc:'Unlocks soldiers. They can muster here too.'},
+  mill:    {name:'Lumber mill',hp:35,struct:1,icon:'🪵',lvl:1,desc:'+2 lumber per adjacent forest each turn.'},
+  market:  {name:'Market',hp:35,struct:1,icon:'💰',lvl:1,desc:'+2 gold per adjacent building each turn.'},
+  jwolf:   {name:'Timber wolf',hp:24,mp:0,melee:[6,2],align:'chaotic',icon:'🐺',lvl:1,camp:1,desc:'Jungle camp. Worth 15 gold.'},
+  golem:   {name:'Stone golem',hp:64,mp:0,melee:[11,2],align:'neutral',icon:'🗿',lvl:2,camp:1,desc:'Jungle boss. Worth 45 gold and 25 lumber.'},
+  drake:   {name:'River drake',hp:58,mp:0,melee:[7,2],ranged:[8,3],align:'lawful',icon:'🐉',lvl:2,camp:1,desc:'Jungle boss. Worth 40 gold and gives your army +1 damage for 8 turns.'},
+  warden:  {name:'Aldric the Warden',hp:62,mp:5,melee:[8,3],align:'lawful',icon:'⚔️',champ:1,role:'Bruiser',desc:'A shield-bearer who stuns, heals and outlasts.'},
+  sera:    {name:'Sera Flamecaller',hp:44,mp:5,melee:[4,2],ranged:[8,3],magic:1,align:'neutral',icon:'🔥',champ:1,role:'Mage',desc:'A glass-cannon mage whose magic always hits 70% of the time.'},
+  vorga:   {name:'Vorga Skullsplitter',hp:64,mp:5,melee:[9,3],align:'chaotic',icon:'👹',champ:1,role:'Brawler',desc:'The Horde warchief.'},
+};
+
+const FACTION = {
+  blue:{name:'Kingdom of Aster', worker:'peasant', train:['footman','archer','knight']},
+  red: {name:'Ashfang Horde',    worker:'peon',    train:['grunt','axe','wolf']},
+};
+
+const BUILD = {
+  barracks:{cost:[40,20]},
+  mill:    {cost:[30,0]},
+  market:  {cost:[30,20]},
+  gtower:  {cost:[35,30]},
+};
+
+const TECH = {
+  blades:  {name:'Forged blades', cost:[40,20], turns:3, desc:'+1 melee damage for all units.'},
+  fletch:  {name:'Fletching',     cost:[40,20], turns:3, desc:'+1 ranged damage for all units.'},
+  masonry: {name:'Masonry',       cost:[30,30], turns:2, desc:'Buildings get +20 max HP.'},
+  stables: {name:'Stables',       cost:[50,30], turns:3, req:'blades',  desc:'Mounted units get +1 movement.'},
+  tithes:  {name:'Tithes',        cost:[60,20], turns:3, req:'masonry', desc:'+4 gold every turn.'},
+  drill:   {name:'Drill yards',   cost:[60,30], turns:3, req:'fletch',  desc:'Newly trained soldiers get +6 max HP.'},
+};
+
+const ITEMS = {
+  sword: {name:'Long sword',     cost:55, icon:'🗡️', desc:'+3 damage per strike.'},
+  mail:  {name:'Chain mail',     cost:50, icon:'🥋', desc:'+18 max HP.'},
+  boots: {name:'Swift boots',    cost:45, icon:'👢', desc:'+1 movement.'},
+  rod:   {name:'Ember rod',      cost:60, icon:'🪄', desc:'Abilities deal 30% more damage.'},
+  potion:{name:'Healing draught',cost:20, icon:'🧪', desc:'Drink any time to restore 25 HP. Carry up to 3.'},
+};
+
+/* ---------- abilities ---------- */
+const ABIL = {
+  warden:[
+    {id:'bash', name:'Shield bash', cd:3, tgt:'enemy', range:1, dmg:u=>12+2*u.lvl, desc:'Deal {d} damage to an adjacent enemy and stun it for a turn.',
+      run(u,t){abDamage(u,t,this.dmg(u)); if(alive(t)&&!t.isStruct){t.stun=1; float(t,'stunned','#e8d27a');}}},
+    {id:'rally', name:'Rally', cd:4, tgt:'self', desc:'Heal yourself and adjacent allies for 12.',
+      run(u){heal(u,12); for(const a of adjUnits(u,x=>x.team===u.team&&!x.isStruct)) heal(a,12);}},
+    {id:'iron', name:'Iron skin', cd:4, tgt:'self', free:1, desc:'Take half damage until your next turn. Does not use your action.',
+      run(u){u.shield=1; float(u,'iron skin','#cfd8e0');}},
+    {id:'judg', name:'Judgment', cd:6, tgt:'self', lvl:3, dmg:u=>16+3*u.lvl, desc:'Ultimate. Deal {d} damage to every adjacent enemy.',
+      run(u){for(const e of adjUnits(u,x=>isEnemy(u,x))) abDamage(u,e,this.dmg(u));}},
+  ],
+  sera:[
+    {id:'bolt', name:'Fire bolt', cd:2, tgt:'enemy', range:3, dmg:u=>11+2*u.lvl, desc:'Hit an enemy up to 3 hexes away for {d} damage.',
+      run(u,t){abDamage(u,t,this.dmg(u));}},
+    {id:'blink', name:'Blink', cd:4, tgt:'hex', range:3, free:1, desc:'Teleport to an empty hex up to 3 away. Does not use your action.',
+      run(u,h){placeUnit(u,h.c,h.r); u.mpLeft=0;}},
+    {id:'nova', name:'Frost nova', cd:4, tgt:'self', dmg:u=>8+u.lvl, desc:'Deal {d} damage to adjacent enemies and slow them to 1 move next turn.',
+      run(u){for(const e of adjUnits(u,x=>isEnemy(u,x))){abDamage(u,e,this.dmg(u)); if(alive(e)) e.slow=1;}}},
+    {id:'meteor', name:'Meteor', cd:6, tgt:'area', range:4, lvl:3, dmg:u=>22+3*u.lvl, desc:'Ultimate. Strike a hex up to 4 away for {d}, and half that to enemies around it.',
+      run(u,h){const d=this.dmg(u); const t=unitAt(h.c,h.r); if(t&&isEnemy(u,t)) abDamage(u,t,d);
+        for(const[c,r]of nbrs(h.c,h.r)){const e=unitAt(c,r); if(e&&isEnemy(u,e)) abDamage(u,e,Math.round(d/2));}
+        G.events.push({type:'boom',c:h.c,r:h.r});}},
+  ],
+  vorga:[
+    {id:'cleave', name:'Cleave', cd:3, tgt:'self', dmg:u=>10+2*u.lvl, desc:'Deal {d} damage to every adjacent enemy.',
+      run(u){for(const e of adjUnits(u,x=>isEnemy(u,x))) abDamage(u,e,this.dmg(u));}},
+    {id:'hurl', name:'Hurl axe', cd:3, tgt:'enemy', range:2, dmg:u=>9+2*u.lvl, desc:'Hit an enemy up to 2 hexes away for {d} damage.',
+      run(u,t){abDamage(u,t,this.dmg(u));}},
+    {id:'blood', name:'Bloodlust', cd:4, tgt:'self', free:1, desc:'Heal 14. Does not use your action.',
+      run(u){heal(u,14);}},
+    {id:'exec', name:'Execute', cd:6, tgt:'enemy', range:1, lvl:3, dmg:u=>18+3*u.lvl, desc:'Ultimate. Deal {d} damage plus 35% of the target\u2019s missing HP.',
+      run(u,t){abDamage(u,t,this.dmg(u)+Math.floor((t.maxhp-t.hp)*0.35));}},
+  ],
+};
+
+/* ---------- state ---------- */
+let G = null;
+let NID = 1;
+let OCC = new Map();
+const other = t => t==='blue'?'red':'blue';
+const alive = u => u && u.hp>0 && G.units.includes(u);
+const tileOf = u => G.tiles[key(u.c,u.r)];
+const unitAt = (c,r) => OCC.get(key(c,r)) || null;
+const isEnemy = (a,b) => a.team!==b.team;
+function reindex(){OCC=new Map(); for(const u of G.units) OCC.set(key(u.c,u.r),u);}
+function addUnit(u){G.units.push(u); OCC.set(key(u.c,u.r),u); return u;}
+function removeUnit(u){const i=G.units.indexOf(u); if(i>=0)G.units.splice(i,1); if(OCC.get(key(u.c,u.r))===u)OCC.delete(key(u.c,u.r));}
+function placeUnit(u,c,r){ if(OCC.get(key(u.c,u.r))===u)OCC.delete(key(u.c,u.r)); G.events.push({type:'move',id:u.id,fc:u.c,fr:u.r}); u.c=c;u.r=r;OCC.set(key(c,r),u); }
+function teamUnits(t){return G.units.filter(u=>u.team===t);}
+function adjUnits(u,f){const o=[];for(const[c,r]of nbrs(u.c,u.r)){const x=unitAt(c,r);if(x&&(!f||f(x)))o.push(x);}return o;}
+function log(text,team){G.log.push({text,team:team||'',round:G.round}); if(G.log.length>200)G.log.shift();}
+function float(u,text,col){G.events.push({type:'float',c:u.c,r:u.r,text,col});}
+function keepOf(t){return G.units.find(u=>u.kind==='keep'&&u.team===t);}
+function champOf(t){return G.units.find(u=>u.isChamp&&u.team===t);}
+
+function mk(kind,team,c,r){
+  const d=DEF[kind];
+  const u={id:NID++,kind,team,c,r,hp:d.hp,maxhp:d.hp,xp:0,lvl:d.lvl||0,maxxp:20,dmgBonus:0,mpLeft:0,attacked:true,
+    isStruct:!!d.struct,items:[],potions:0,cd:{},stun:0,slow:0,shield:0,rested:false,li:0,lane:null};
+  if(d.champ){u.isChamp=true;u.lvl=1;u.maxxp=15;}
+  if(d.lvl===1&&!d.struct&&!d.camp) u.maxxp=30;
+  if(d.camp) u.maxxp=0;
+  const P=G.players[team];
+  if(P){
+    if(d.struct&&P.tech.masonry){u.maxhp+=20;u.hp+=20;}
+    if(d.soldier&&P.tech.drill){u.maxhp+=6;u.hp+=6;}
+  }
+  return addUnit(u);
+}
+
+/* ---------- map ---------- */
+function genMap(seed){
+  const rnd=mulberry32(seed);
+  const T=[]; for(let r=0;r<H;r++)for(let c=0;c<W;c++)T.push({c,r,t:'grass',v:rnd()});
+  G.tiles=T;
+  const set=(c,r,t)=>{ if(inB(c,r))T[key(c,r)].t=t; const[mc,mr]=mirror(c,r); if(inB(mc,mr))T[key(mc,mr)].t=t; };
+  const blob=(t,n,rad,p)=>{for(let i=0;i<n;i++){const cc=1+Math.floor(rnd()*10),rr=Math.floor(rnd()*H);
+    for(const[c,r]of within(cc,rr,rad)) if(xOf(c,r)<11&&rnd()<p) set(c,r,t);}};
+  blob('forest',11,2,0.62); blob('hills',6,1,0.55); blob('mountain',5,0,1);
+  for(let r=1;r<H;r+=2) T[key(W-1,r)].t='mountain';
+  for(let r=0;r<H;r++){ if(r&1) set(11,r,'shallow'); else set(12,r,'shallow'); }
+  for(const[c,r]of within(2,7,2)) set(c,r,'grass');
+  const half=pts=>{let p=[];for(let i=0;i<pts.length-1;i++){const s=hexLine(pts[i],pts[i+1]); if(p.length)s.shift(); p=p.concat(s);}return p;};
+  const full=h=>{const m=h.map(([c,r])=>mirror(c,r)).reverse(); const l=h[h.length-1]; if(m[0][0]===l[0]&&m[0][1]===l[1])m.shift(); return h.concat(m).slice(1,-1);};
+  G.lanes={
+    top: full(half([[2,7],[4,2],[12,2]])),
+    mid: full(half([[2,7],[11,7]])),
+    bot: full(half([[2,7],[4,12],[12,12]])),
+  };
+  const onLane=new Set(); for(const L of Object.values(G.lanes)) for(const[c,r]of L){T[key(c,r)].t='road'; onLane.add(key(c,r));}
+  G.mines=[[6,5],[6,9]];
+  for(const[c,r]of G.mines) set(c,r,'mine');
+  const campSpots=[['jwolf',8,4],['jwolf',8,3],['jwolf',8,10],['jwolf',8,11]];
+  G.camps=[];
+  for(const[k,c,r]of campSpots){ set(c,r,'grass'); const[mc,mr]=mirror(c,r); G.camps.push({kind:k,c,r,timer:0,uid:null},{kind:k,c:mc,r:mr,timer:0,uid:null}); }
+  set(12,4,'grass'); set(12,10,'hills');
+  G.camps.push({kind:'drake',c:12,r:4,timer:0,uid:null},{kind:'golem',c:12,r:10,timer:0,uid:null});
+  // tower spots
+  G.towerSpots={blue:[],red:[]};
+  for(const name of ['top','mid','bot']){
+    const L=G.lanes[name]; let bi=0,bd=99;
+    L.forEach(([c,r],i)=>{const d=Math.abs(xOf(c,r)-7.5); if(d<bd&&xOf(c,r)<11){bd=d;bi=i;}});
+    const [pc,pr]=L[bi];
+    const cand=nbrs(pc,pr).filter(([c,r])=>!onLane.has(key(c,r))&&!['shallow','mountain','mine'].includes(T[key(c,r)].t)&&!G.camps.some(k=>k.c===c&&k.r===r))
+      .sort((a,b)=>Math.abs(a[1]-7)-Math.abs(b[1]-7)||a[1]-b[1]||a[0]-b[0]);
+    const [tc,tr]=cand[0]; set(tc,tr,'grass');
+    G.towerSpots.blue.push([tc,tr]); G.towerSpots.red.push(mirror(tc,tr));
+  }
+}
+
+function laneFor(team,name){const L=G.lanes[name]; return team==='blue'?L:L.slice().reverse();}
+
+/* ---------- game setup ---------- */
+function newGame(champKind,seed){
+  NID=1; OCC=new Map();
+  seed = seed ?? Math.floor(Math.random()*1e9);
+  G={seed,round:0,phase:0,turn:'blue',tiles:[],units:[],lanes:{},camps:[],log:[],events:[],over:null,
+    players:{
+      blue:{gold:60,lumber:20,tech:{},res:null,buff:0,champKind,champDead:0,champSaved:null,income:[0,0],kills:0},
+      red: {gold:60,lumber:20,tech:{},res:null,buff:0,champKind:'vorga',champDead:0,champSaved:null,income:[0,0],kills:0},
+      neutral:{gold:0,lumber:0,tech:{},buff:0},
+    }};
+  genMap(seed);
+  const BK=[2,7], RK=mirror(2,7);
+  const bk=mk('keep','blue',...BK), rk=mk('keep','red',...RK);
+  for(const t of ['blue','red']) for(const[c,r]of G.towerSpots[t]) mk('tower',t,c,r);
+  spawnCamps(true);
+  for(const t of ['blue','red']){
+    const k=keepOf(t);
+    const free=freeAdj(k); const ch=mk(G.players[t].champKind,t,...free[0]);
+    const f2=freeAdj(k); mk(FACTION[t].worker,t,...f2[f2.length-1]);
+  }
+  log('The battle begins. Destroy the enemy Keep to win.');
+  startTurn('blue');
+  return G;
+}
+
+function freeAdj(u){return nbrs(u.c,u.r).filter(([c,r])=>!unitAt(c,r)&&TER[G.tiles[key(c,r)].t].move<99);}
+
+function spawnCamps(initial){
+  for(const s of G.camps){
+    if(s.uid && G.units.some(u=>u.id===s.uid)) continue;
+    if(s.uid && !initial){ s.timer=10; s.uid=null; }
+    if(!s.uid && (initial || s.timer<=0)){
+      if(unitAt(s.c,s.r)) continue;
+      const u=mk(s.kind,'neutral',s.c,s.r); s.uid=u.id; s.timer=0;
+    }
+  }
+}
+
+/* ---------- stats ---------- */
+function mpMax(u){const d=DEF[u.kind]; let m=d.mp||0; if(u.items.includes('boots'))m+=1; if(d.mounted&&G.players[u.team].tech.stables)m+=1; return m;}
+function moveCost(u,t){return TER[t].move;}
+function defenseOf(u,atC,atR){ if(u.isStruct) return 20; const c=atC??u.c, r=atR??u.r; return TER[G.tiles[key(c,r)].t].def; }
+function isInvuln(u){ return u.kind==='keep' && G.units.filter(t=>t.kind==='tower'&&t.team===u.team).length===3; }
+function todMod(u){ const law=PHASES[G.phase].law; const a=DEF[u.kind].align; if(a==='lawful')return law; if(a==='chaotic')return -law; return 0; }
+function weapon(u,type){
+  const d=DEF[u.kind]; const base=d[type]; if(!base) return null;
+  const P=G.players[u.team];
+  let dmg=base[0]+u.dmgBonus;
+  if(u.items.includes('sword')) dmg+=3;
+  if(type==='melee'&&P.tech.blades) dmg+=1;
+  if(type==='ranged'&&P.tech.fletch) dmg+=1;
+  if(P.buff>0) dmg+=1;
+  dmg=Math.max(1,Math.round(dmg*(1+todMod(u)/100)));
+  return {dmg,n:base[1],magic:!!(d.magic&&type==='ranged'),type};
+}
+function hitChance(w,target,tc,tr){ if(w.magic) return 70; return 100-defenseOf(target,tc,tr); }
+
+/* ---------- damage, death, xp ---------- */
+function heal(u,n){const b=u.hp; u.hp=Math.min(u.maxhp,u.hp+n); if(u.hp>b) float(u,'+'+(u.hp-b),'#8fe38a');}
+function dealDamage(t,amt,src){
+  if(!alive(t)) return 0;
+  if(isInvuln(t)){ float(t,'shielded','#cfd8e0'); return 0; }
+  if(t.shield) amt=Math.ceil(amt/2);
+  t.hp-=amt; float(t,'-'+amt,'#ff8a73');
+  if(t.hp<=0) kill(t,src);
+  return amt;
+}
+function abDamage(u,t,d){ if(u.items.includes('rod')) d=Math.round(d*1.3); return dealDamage(t,d,u); }
+
+const BOUNTY = {mminion:6,rminion:8,tower:60,keep:0,gtower:25,barracks:25,mill:20,market:20,jwolf:15,golem:45,drake:40};
+function kill(t,src){
+  const d=DEF[t.kind];
+  removeUnit(t);
+  G.events.push({type:'death',c:t.c,r:t.r,icon:d.icon});
+  const kt=src?src.team:null;
+  if(kt && kt!=='neutral'){
+    const P=G.players[kt];
+    let g = BOUNTY[t.kind] ?? (t.isChamp ? 30+5*t.lvl : 10+4*t.lvl);
+    if(d.minion && src.isChamp) g+=4;
+    P.gold+=g; P.kills++;
+    G.events.push({type:'float',c:t.c,r:t.r,text:'+'+g+'g',col:'#f2cf5b',delay:250});
+    if(t.kind==='golem'){P.lumber+=25; log(`${teamName(kt)} slew the Stone golem (+45 gold, +25 lumber).`,kt);}
+    if(t.kind==='drake'){P.buff=8; log(`${teamName(kt)} slew the River drake: +1 damage for 8 turns.`,kt);}
+    if(t.isChamp) log(`${DEF[src.kind].name} slew ${d.name} (+${g} gold).`,kt);
+    if(d.struct&&t.kind!=='keep') log(`${teamName(kt)} destroyed a ${d.name.toLowerCase()} (+${g} gold).`,kt);
+    const kx = d.minion?4:(t.isChamp?16:8*Math.max(1,t.lvl));
+    if(!src.isStruct) gainXP(src,kx);
+    for(const c of G.units) if(c.isChamp && c!==src && c.team===kt && udist(c,t)<=2) gainXP(c, d.minion?4:(t.isChamp?14:6));
+  }
+  if(t.isChamp){
+    const P=G.players[t.team]; P.champDead=3; P.champSaved=t;
+    if(!(kt&&kt!=='neutral')) log(`${d.name} has fallen.`,t.team);
+  }
+  if(t.kind==='keep'){ G.over=other(t.team); log(G.over==='blue'?'You are victorious!':'The Horde is victorious.',G.over); }
+}
+function teamName(t){return t==='blue'?'You':t==='red'?'The Horde':'Neutrals';}
+function gainXP(u,n){
+  if(u.isStruct||DEF[u.kind].minion||DEF[u.kind].camp) return;
+  u.xp+=n;
+  while(u.xp>=u.maxxp){
+    if(u.isChamp){
+      if(u.lvl>=6){u.xp=u.maxxp;break;}
+      u.xp-=u.maxxp; u.lvl++; u.maxhp+=8; u.hp+=8; u.dmgBonus+=1; u.maxxp=15*u.lvl;
+      float(u,'Level '+u.lvl,'#f2cf5b');
+      log(`${DEF[u.kind].name} reached level ${u.lvl}${u.lvl===3?' and unlocked an ultimate':''}.`,u.team);
+    } else {
+      if(u.lvl>=3){u.xp=u.maxxp;break;}
+      u.xp-=u.maxxp; u.lvl++; u.maxhp+=6; u.hp=u.maxhp; u.dmgBonus+=1; u.maxxp+=15;
+      float(u,'Promoted','#f2cf5b');
+      log(`A ${DEF[u.kind].name.toLowerCase()} was promoted to rank ${u.lvl}.`,u.team);
+    }
+  }
+}
+
+/* ---------- combat ---------- */
+function combat(att,def,type){
+  const A=weapon(att,type); if(!A) return;
+  const D=def.isStruct?null:weapon(def,type);
+  const ha=hitChance(A,def), hd=D?hitChance(D,att):0;
+  let ai=0,di=0; att.attacked=true; att.rested=false; def.rested=false;
+  att.mpLeft=0;
+  if(isInvuln(def)){ float(def,'shielded','#cfd8e0'); return; }
+  let step=0;
+  while(alive(att)&&alive(def)&&(ai<A.n||(D&&di<D.n))){
+    if(ai<A.n){ai++; if(RNG()*100<ha){ dealDamage(def,A.dmg,att);} else G.events.push({type:'float',c:def.c,r:def.r,text:'miss',col:'#d9d2c0'});}
+    if(!alive(att)||!alive(def)) break;
+    if(D&&di<D.n){di++; if(RNG()*100<hd){ dealDamage(att,D.dmg,def);} else G.events.push({type:'float',c:att.c,r:att.r,text:'miss',col:'#d9d2c0'});}
+    step++;
+  }
+  const lv=u=>Math.max(1,u.lvl);
+  if(alive(att)) gainXP(att,lv(def));
+  if(alive(def)) gainXP(def,lv(att));
+}
+
+/* Monte Carlo forecast; attacker may be evaluated at a different hex */
+function forecast(att,def,type,ac,ar,sims=60){
+  const A=weapon(att,type); if(!A) return null;
+  const D=def.isStruct?null:weapon(def,type);
+  const ha=hitChance(A,def), hd=D?hitChance(D,att,ac,ar):0;
+  const inv=isInvuln(def);
+  const aD=inv?0:(def.shield?Math.ceil(A.dmg/2):A.dmg), dD=D?(att.shield?Math.ceil(D.dmg/2):D.dmg):0;
+  let kill=0,death=0,dealt=0,taken=0;
+  for(let s=0;s<sims;s++){
+    let ah=att.hp,dh=def.hp,ai=0,di=0;
+    while(ah>0&&dh>0&&(ai<A.n||(D&&di<D.n))){
+      if(ai<A.n){ai++; if(Math.random()*100<ha) dh-=aD;}
+      if(dh<=0)break;
+      if(D&&di<D.n){di++; if(Math.random()*100<hd) ah-=dD;}
+    }
+    if(dh<=0)kill++; if(ah<=0)death++;
+    dealt+=def.hp-Math.max(0,dh); taken+=att.hp-Math.max(0,ah);
+  }
+  return {A,D,ha,hd,aD,dD,inv,kill:kill/sims,death:death/sims,dealt:dealt/sims,taken:taken/sims};
+}
+
+/* ---------- movement ---------- */
+function exertsZoc(x){ const d=DEF[x.kind]; return !x.isStruct && !d.minion && !d.worker; }
+function inZoc(u,c,r){ for(const[nc,nr]of nbrs(c,r)){const x=unitAt(nc,nr); if(x&&isEnemy(u,x)&&exertsZoc(x)) return true;} return false; }
+function reachable(u){
+  const res=new Map(); const sk=key(u.c,u.r);
+  res.set(sk,{c:u.c,r:u.r,left:u.mpLeft});
+  const open=[[u.mpLeft,u.c,u.r]];
+  while(open.length){
+    let bi=0; for(let i=1;i<open.length;i++) if(open[i][0]>open[bi][0]) bi=i;
+    const [left,c,r]=open.splice(bi,1)[0];
+    if(res.get(key(c,r)).left>left||left<=0) continue;
+    if((c!==u.c||r!==u.r)&&inZoc(u,c,r)) continue;
+    for(const[nc,nr]of nbrs(c,r)){
+      const cost=moveCost(u,G.tiles[key(nc,nr)].t); if(cost>left) continue;
+      const o=unitAt(nc,nr); if(o&&(o.isStruct||isEnemy(u,o))) continue;
+      const nl=left-cost, k=key(nc,nr), ex=res.get(k);
+      if(!ex||ex.left<nl){res.set(k,{c:nc,r:nr,left:nl}); open.push([nl,nc,nr]);}
+    }
+  }
+  for(const[k,v]of res) if(k!==sk&&unitAt(v.c,v.r)) res.delete(k);
+  return res;
+}
+function moveUnit(u,c,r,reach){
+  reach=reach||reachable(u);
+  const h=reach.get(key(c,r)); if(!h) return false;
+  if(c===u.c&&r===u.r) return true;
+  placeUnit(u,c,r); u.mpLeft=inZoc(u,c,r)?0:h.left; u.rested=false;
+  return true;
+}
+
+/* ---------- economy actions ---------- */
+function afford(P,cost){return P.gold>=cost[0]&&P.lumber>=(cost[1]||0);}
+function pay(P,cost){P.gold-=cost[0];P.lumber-=(cost[1]||0);}
+function hasBuilding(t,k){return G.units.some(u=>u.team===t&&u.kind===k);}
+function recruitSpots(t,kind){
+  const spots=[]; const k=keepOf(t); if(!k) return spots;
+  const srcs=[k]; if(!DEF[kind].worker) for(const b of G.units) if(b.team===t&&b.kind==='barracks') srcs.push(b);
+  for(const s of srcs) for(const h of freeAdj(s)) if(!spots.some(x=>x[0]===h[0]&&x[1]===h[1])) spots.push(h);
+  return spots;
+}
+function recruit(t,kind,spot){
+  const P=G.players[t], d=DEF[kind];
+  if(!d.worker&&!hasBuilding(t,'barracks')) return 'Build a Barracks first.';
+  if(!afford(P,d.cost)) return 'Not enough resources.';
+  const spots=recruitSpots(t,kind); if(!spots.length) return 'No free hex next to your Keep or Barracks.';
+  const s=spot&&spots.find(x=>x[0]===spot[0]&&x[1]===spot[1])||spots[0];
+  pay(P,d.cost); const u=mk(kind,t,s[0],s[1]); u.mpLeft=0; u.attacked=true;
+  return u;
+}
+function territory(t){
+  const set=new Set(); const add=(c,r,rad)=>{for(const[a,b]of within(c,r,rad))set.add(key(a,b));};
+  for(const u of G.units) if(u.team===t){ if(u.kind==='keep')add(u.c,u.r,2); else if(['barracks','mill','market','gtower'].includes(u.kind))add(u.c,u.r,1);}
+  return set;
+}
+function canBuild(t,c,r,terr){
+  terr=terr||territory(t);
+  if(!inB(c,r)||!terr.has(key(c,r))||unitAt(c,r)) return false;
+  const tt=G.tiles[key(c,r)].t; return tt==='grass'||tt==='hills';
+}
+function build(t,kind,c,r){
+  const P=G.players[t], b=BUILD[kind];
+  if(!afford(P,b.cost)) return 'Not enough resources.';
+  if(!canBuild(t,c,r)) return 'You can only build on open grass or hills inside your territory.';
+  pay(P,b.cost); const u=mk(kind,t,c,r);
+  log(`${teamName(t)} built a ${DEF[kind].name.toLowerCase()}.`,t);
+  return u;
+}
+function techAvailable(P,id){const x=TECH[id]; return !P.tech[id]&&(!x.req||P.tech[x.req]);}
+function startResearch(t,id){
+  const P=G.players[t]; if(P.res) return 'Already researching.';
+  if(!techAvailable(P,id)) return 'Not available yet.';
+  if(!afford(P,TECH[id].cost)) return 'Not enough resources.';
+  pay(P,TECH[id].cost); P.res={id,left:TECH[id].turns}; return true;
+}
+function applyTech(t,id){
+  if(id==='masonry') for(const u of G.units) if(u.team===t&&u.isStruct){u.maxhp+=20;u.hp+=20;}
+}
+function nearKeep(u){const k=keepOf(u.team); return k&&udist(u,k)<=1;}
+function buy(u,id){
+  const P=G.players[u.team], it=ITEMS[id];
+  if(!u.isChamp) return 'Only champions can shop.';
+  if(!nearKeep(u)) return 'Stand next to your Keep to shop.';
+  if(P.gold<it.cost) return 'Not enough gold.';
+  if(id==='potion'){ if(u.potions>=3) return 'You can carry 3 draughts.'; P.gold-=it.cost; u.potions++; return true; }
+  if(u.items.includes(id)) return 'Already owned.';
+  if(u.items.length>=4) return 'Your bag is full.';
+  P.gold-=it.cost; u.items.push(id);
+  if(id==='mail'){u.maxhp+=18;u.hp+=18;}
+  if(id==='boots') u.mpLeft+=1;
+  return true;
+}
+function drink(u){ if(u.potions<=0||u.hp>=u.maxhp) return false; u.potions--; heal(u,25); return true; }
+
+/* ---------- abilities ---------- */
+function abilityList(u){return ABIL[u.kind]||[];}
+function abilityReady(u,a){ if(u.lvl<(a.lvl||1)) return 'Unlocks at level '+a.lvl; if(u.cd[a.id]>0) return 'Ready in '+u.cd[a.id]+' turn'+(u.cd[a.id]>1?'s':''); if(!a.free&&u.attacked) return 'Already acted this turn'; if(G.turn!==u.team) return 'Not your turn'; return null; }
+function abilityTargets(u,a){
+  const out=[];
+  if(a.tgt==='enemy'){ for(const x of G.units) if(isEnemy(u,x)&&udist(u,x)<=a.range&&!isInvuln(x)) out.push([x.c,x.r]); }
+  else if(a.tgt==='hex'){ for(const[c,r]of within(u.c,u.r,a.range)) if(!unitAt(c,r)&&TER[G.tiles[key(c,r)].t].move<99) out.push([c,r]); }
+  else if(a.tgt==='area'){ for(const[c,r]of within(u.c,u.r,a.range)) out.push([c,r]); }
+  return out;
+}
+function useAbility(u,idx,c,r){
+  const a=abilityList(u)[idx]; if(!a) return 'No ability.';
+  const why=abilityReady(u,a); if(why) return why;
+  if(a.tgt==='self'){ a.run(u); }
+  else {
+    if(!abilityTargets(u,a).some(h=>h[0]===c&&h[1]===r)) return 'Invalid target.';
+    if(a.tgt==='enemy') a.run(u,unitAt(c,r)); else a.run(u,{c,r});
+  }
+  u.cd[a.id]=a.cd+1; u.rested=false;
+  if(!a.free){ u.attacked=true; u.mpLeft=0; }
+  log(`${DEF[u.kind].name} used ${a.name}.`,u.team);
+  return true;
+}
+
+/* ---------- turn flow ---------- */
+function spawnWaves(){
+  for(const t of ['blue','red']) for(const name of ['top','mid','bot']){
+    const L=laneFor(t,name); const kinds=['mminion','mminion','rminion'];
+    let i=0;
+    for(const k of kinds){
+      while(i<6&&unitAt(...L[i])) i++;
+      if(i>=6) break;
+      const m=mk(k,t,...L[i]); m.lane=name; m.li=i; i++;
+    }
+  }
+}
+function roundStart(){
+  if((G.round-1)%3===0){ spawnWaves(); log('A new minion wave marches from each Keep.'); }
+  for(const s of G.camps) if(!s.uid&&s.timer>0) s.timer--;
+  spawnCamps(false);
+  for(const u of G.units) if(u.team==='neutral'&&!adjUnits(u,x=>x.team!=='neutral').length) u.hp=u.maxhp;
+}
+function startTurn(team){
+  if(G.over) return;
+  G.turn=team;
+  if(team==='blue'){ G.round++; G.phase=(G.round-1)%6; roundStart(); }
+  const P=G.players[team];
+  let gold=8+(P.tech.tithes?4:0), lumber=0;
+  for(const u of teamUnits(team)){
+    const d=DEF[u.kind];
+    if(d.worker){ const tt=tileOf(u).t; if(tt==='mine')gold+=8; else if(tt==='forest')lumber+=4; }
+    if(u.kind==='mill') lumber+=2*nbrs(u.c,u.r).filter(([c,r])=>G.tiles[key(c,r)].t==='forest').length;
+    if(u.kind==='market') gold+=2*adjUnits(u,x=>x.team===team&&x.isStruct).length;
+  }
+  P.gold+=gold; P.lumber+=lumber; P.income=[gold,lumber];
+  if(P.res){ P.res.left--; if(P.res.left<=0){ P.tech[P.res.id]=true; applyTech(team,P.res.id); log(`${teamName(team)} finished researching ${TECH[P.res.id].name}.`,team); P.res=null; } }
+  if(P.buff>0) P.buff--;
+  if(P.champDead>0){
+    P.champDead--;
+    if(P.champDead===0&&P.champSaved){
+      const k=keepOf(team), f=k&&freeAdj(k);
+      if(f&&f.length){ const u=P.champSaved; u.c=f[0][0]; u.r=f[0][1]; u.hp=u.maxhp; u.stun=0;u.slow=0;u.shield=0; addUnit(u); P.champSaved=null; log(`${DEF[u.kind].name} returns to the field.`,team); }
+      else P.champDead=1;
+    }
+  }
+  for(const u of teamUnits(team)){
+    if(u.isStruct) continue;
+    if(nearKeep(u)) heal(u,u.isChamp?15:8);
+    else if(u.rested) heal(u,2);
+    u.rested=true; u.shield=0;
+    for(const k in u.cd) if(u.cd[k]>0) u.cd[k]--;
+    u.mpLeft=mpMax(u); u.attacked=false;
+    if(u.stun){u.mpLeft=0;u.attacked=true;u.stun=0;}
+    if(u.slow){u.mpLeft=Math.min(1,u.mpLeft);u.slow=0;}
+  }
+}
+
+function minionsAct(team){
+  const ms=teamUnits(team).filter(u=>DEF[u.kind].minion).sort((a,b)=>b.li-a.li);
+  for(const m of ms){
+    if(!alive(m)) continue;
+    if(m.mpLeft<=0&&m.attacked) continue;
+    const L=laneFor(team,m.lane);
+    let tgt=minionTarget(m);
+    if(!tgt){
+      let j=m.li, budget=m.mpLeft, dest=null;
+      while(true){
+        j++; if(j>=L.length) break;
+        const[nc,nr]=L[j]; const cst=moveCost(m,G.tiles[key(nc,nr)].t); if(cst>budget) break; budget-=cst;
+        const o=unitAt(nc,nr);
+        if(o){ if(o.isStruct||isEnemy(m,o)) break; continue; }
+        dest=j;
+        if(nbrs(nc,nr).some(([a,b])=>{const x=unitAt(a,b);return x&&isEnemy(m,x)&&x.team!=='neutral';})) break;
+      }
+      if(dest!==null){ placeUnit(m,...L[dest]); m.li=dest; }
+      tgt=minionTarget(m);
+    }
+    if(tgt && !m.attacked) combat(m,tgt,DEF[m.kind].ranged?'ranged':'melee');
+    m.mpLeft=0; m.attacked=true;
+  }
+}
+function minionTarget(m){
+  const es=adjUnits(m,x=>isEnemy(m,x)&&x.team!=='neutral'&&!isInvuln(x));
+  if(!es.length) return null;
+  es.sort((a,b)=>(a.isStruct-b.isStruct)||(a.hp-b.hp));
+  return es[0];
+}
+function structuresShoot(team){
+  for(const s of teamUnits(team)){
+    const d=DEF[s.kind]; if(!d.shot) continue;
+    const es=G.units.filter(x=>isEnemy(s,x)&&x.team!=='neutral'&&!x.isStruct&&udist(s,x)<=d.range);
+    if(!es.length) continue;
+    es.sort((a,b)=>(DEF[b.kind].minion?1:0)-(DEF[a.kind].minion?1:0)||(a.hp-b.hp));
+    const t=es[0];
+    G.events.push({type:'shot',fc:s.c,fr:s.r,c:t.c,r:t.r});
+    dealDamage(t,d.shot+(G.players[team].tech.masonry?1:0),s);
+  }
+}
+function campsAct(team){
+  for(const n of G.units.filter(u=>u.team==='neutral')){
+    if(!alive(n)||n.hp>=n.maxhp) continue;
+    const es=adjUnits(n,x=>x.team===team&&!x.isStruct); if(!es.length) continue;
+    es.sort((a,b)=>a.hp-b.hp);
+    const t=es[0]; const type=DEF[n.kind].ranged&&!DEF[t.kind].ranged?'ranged':'melee';
+    combat(n,t,type);
+  }
+}
+function endTurn(team){
+  if(G.over||G.turn!==team) return;
+  minionsAct(team);
+  if(G.over) return;
+  structuresShoot(team);
+  campsAct(team);
+  if(G.over) return;
+  startTurn(other(team));
+}
+
+/* ================= AI ================= */
+function aiEconomy(t){
+  const P=G.players[t], k=keepOf(t); if(!k) return;
+  if(!P.res){ for(const id of ['blades','masonry','fletch','tithes','stables','drill']) if(techAvailable(P,id)&&P.gold>=TECH[id].cost[0]+35&&P.lumber>=TECH[id].cost[1]){ startResearch(t,id); break; } }
+  const terr=territory(t); const ek=keepOf(other(t));
+  const spots=[]; for(const kk of terr){const c=kk%W,r=Math.floor(kk/W); if(canBuild(t,c,r,terr)) spots.push([c,r]);}
+  const onLane=h=>Object.values(G.lanes).some(L=>L.some(x=>udist({c:x[0],r:x[1]},{c:h[0],r:h[1]})===0));
+  const good=spots.filter(h=>!onLane(h));
+  const place=(kind,score)=>{ if(!good.length) return; good.sort((a,b)=>score(b)-score(a)); const h=good[0]; build(t,kind,h[0],h[1]); good.splice(0,1); };
+  const toward=h=>ek?-dist(h[0],h[1],ek.c,ek.r)*0.1:0;
+  if(!hasBuilding(t,'barracks')&&afford(P,BUILD.barracks.cost)) place('barracks',h=>toward(h)-dist(h[0],h[1],k.c,k.r));
+  else if(hasBuilding(t,'barracks')&&!hasBuilding(t,'mill')&&P.gold>=60) place('mill',h=>nbrs(...h).filter(([c,r])=>G.tiles[key(c,r)].t==='forest').length);
+  else if(hasBuilding(t,'barracks')&&!hasBuilding(t,'market')&&P.gold>=90&&P.lumber>=40) place('market',h=>nbrs(...h).filter(([c,r])=>{const x=unitAt(c,r);return x&&x.team===t&&x.isStruct;}).length);
+  const F=FACTION[t];
+  const workers=teamUnits(t).filter(u=>DEF[u.kind].worker).length;
+  if(workers<3&&P.gold>=15) recruit(t,F.worker);
+  if(hasBuilding(t,'barracks')){
+    let army=teamUnits(t).filter(u=>DEF[u.kind].soldier).length, guard=0;
+    const cycle=[F.train[0],F.train[1],F.train[0],F.train[2]];
+    while(army<16&&guard++<8){
+      let kind=cycle[(army+G.round)%cycle.length];
+      if(!afford(P,DEF[kind].cost)) kind=F.train[0];
+      if(!afford(P,DEF[kind].cost)) break;
+      const r=recruit(t,kind); if(typeof r==='string') break; army++;
+    }
+  }
+}
+function valueOf(e){ if(e.isChamp) return 2.2; if(e.kind==='keep') return 3; if(e.kind==='tower') return 1.8; if(e.isStruct) return 1.2; if(DEF[e.kind].minion) return 0.7; if(DEF[e.kind].camp) return 0.9; if(DEF[e.kind].worker) return 1.1; return 1.2; }
+function dangerAt(u,c,r){ let d=0; for(const s of G.units) if(isEnemy(u,s)&&DEF[s.kind].shot&&dist(c,r,s.c,s.r)<=2) d+=DEF[s.kind].shot; return d; }
+function friendMinionsNear(t,x,rad){return G.units.some(m=>m.team===t&&DEF[m.kind].minion&&udist(m,x)<=rad);}
+function pushOK(t,x){ if(friendMinionsNear(t,x,2)) return true; return G.units.filter(m=>m.team===t&&(DEF[m.kind].soldier||m.isChamp)&&udist(m,x)<=4).length>=3; }
+
+function aiBestAttack(u,reach,allowCamps){
+  let best=null;
+  for(const[,h]of reach){
+    const dz=dangerAt(u,h.c,h.r);
+    for(const[nc,nr]of nbrs(h.c,h.r)){
+      const e=unitAt(nc,nr); if(!e||!isEnemy(u,e)||isInvuln(e)) continue;
+      if(e.team==='neutral'&&!allowCamps) continue;
+      if(e.isStruct&&dz>0&&!pushOK(u.team,e)) continue;
+      for(const type of ['melee','ranged']){
+        const f=forecast(u,e,type,h.c,h.r,24); if(!f) continue;
+        const v=valueOf(e);
+        let s=f.dealt*v + f.kill*25*v - f.taken*0.9 - f.death*(u.isChamp?80:30) + defenseOf(u,h.c,h.r)/12 - dz*(e.isStruct?0.25:0.6)*(u.hp<u.maxhp*0.5?2:1);
+        if(!best||s>best.s) best={s,h,e,type};
+      }
+    }
+  }
+  return best;
+}
+function aiMoveToward(u,reach,target,idealDist){
+  let best=null;
+  for(const[,h]of reach){
+    const d=dist(h.c,h.r,target.c,target.r);
+    const s=-Math.abs(d-idealDist)*3 + defenseOf(u,h.c,h.r)/25 - dangerAt(u,h.c,h.r)*0.5 + (h.left*0.01);
+    if(!best||s>best.s) best={s,h};
+  }
+  if(best) moveUnit(u,best.h.c,best.h.r,reach);
+}
+function aiObjective(u){
+  const t=u.team, k=keepOf(t);
+  const threats=G.units.filter(x=>x.team===other(t)&&!x.isStruct&&k&&udist(x,k)<=5);
+  if(threats.length){ threats.sort((a,b)=>udist(a,u)-udist(b,u)); return {x:threats[0],d:1}; }
+  const tg=G.units.filter(x=>x.team===other(t)&&!isInvuln(x));
+  if(!tg.length) return null;
+  tg.sort((a,b)=>udist(a,u)-udist(b,u)+(a.isStruct?2:0)-(b.isStruct?2:0));
+  const x=tg[0];
+  if(x.isStruct&&DEF[x.kind].shot&&!pushOK(t,x)) return {x,d:3};
+  return {x,d:1};
+}
+function aiSoldier(u){
+  let reach=reachable(u);
+  const best=aiBestAttack(u,reach,false);
+  if(best&&best.s>1.5){ moveUnit(u,best.h.c,best.h.r,reach); if(alive(best.e)) combat(u,best.e,best.type); return; }
+  const o=aiObjective(u); if(o) aiMoveToward(u,reach,o.x,o.d);
+  reach=reachable(u);
+  const b2=aiBestAttack(u,new Map([[key(u.c,u.r),{c:u.c,r:u.r,left:0}]]),false);
+  if(b2&&b2.s>0&&!u.attacked) combat(u,b2.e,b2.type);
+}
+function aiWorker(u){
+  const t=u.team, k=keepOf(t); let reach=reachable(u);
+  const tt=tileOf(u).t;
+  if(tt==='mine') return;
+  const mines=G.tiles.filter(x=>x.t==='mine'&&(!unitAt(x.c,x.r))&&k&&dist(x.c,x.r,k.c,k.r)<=7);
+  let target=null;
+  if(mines.length){ mines.sort((a,b)=>udist(a,u)-udist(b,u)); target=mines[0]; }
+  else { if(tt==='forest') return; const fs=G.tiles.filter(x=>x.t==='forest'&&!unitAt(x.c,x.r)&&k&&dist(x.c,x.r,k.c,k.r)<=4); fs.sort((a,b)=>udist(a,u)-udist(b,u)); target=fs[0]; }
+  if(!target) return;
+  if(reach.has(key(target.c,target.r))) moveUnit(u,target.c,target.r,reach);
+  else aiMoveToward(u,reach,target,0);
+}
+function aiUseAbilities(u){
+  const list=abilityList(u);
+  list.forEach((a,i)=>{
+    if(!alive(u)||abilityReady(u,a)) return;
+    const adjE=adjUnits(u,x=>isEnemy(u,x)&&!isInvuln(x));
+    if(a.id==='blood'||a.id==='rally'){ if(u.hp<u.maxhp*0.6) useAbility(u,i); return; }
+    if(a.id==='iron'){ if(adjE.some(x=>x.isChamp)||(adjE.length&&u.hp<u.maxhp*0.5)) useAbility(u,i); return; }
+    if(a.tgt==='self'&&a.dmg){ if(adjE.length>=2||adjE.some(x=>x.isChamp)) useAbility(u,i); return; }
+    if(a.tgt==='enemy'){ const ts=abilityTargets(u,a).map(([c,r])=>unitAt(c,r)).filter(x=>x&&x.team!=='neutral');
+      if(!ts.length) return; ts.sort((x,y)=>(y.isChamp-x.isChamp)||(x.hp-y.hp)); useAbility(u,i,ts[0].c,ts[0].r); return; }
+    if(a.tgt==='area'){ let best=null; for(const[c,r]of abilityTargets(u,a)){ let s=0; for(const[a2,b2]of [[c,r],...nbrs(c,r)]){const x=unitAt(a2,b2); if(x&&x.team===other(u.team))s+=x.isChamp?3:1; if(x&&x.team===u.team)s-=0;} if(!best||s>best.s)best={s,c,r}; }
+      if(best&&best.s>=3) useAbility(u,i,best.c,best.r); }
+  });
+}
+function aiChamp(u){
+  const t=u.team, k=keepOf(t), P=G.players[t];
+  const shop=()=>{ if(!nearKeep(u)) return; for(const id of ['sword','mail','boots','rod']){ if(u.items.length<4&&!u.items.includes(id)&&P.gold>=ITEMS[id].cost+20) buy(u,id);} if(u.potions<1&&P.gold>=20) buy(u,'potion'); };
+  shop();
+  if(u.hp<u.maxhp*0.45&&u.potions>0) drink(u);
+  let reach=reachable(u);
+  if(u.hp<u.maxhp*0.35&&k){
+    aiMoveToward(u,reach,k,1); shop();
+    const b=aiBestAttack(u,new Map([[key(u.c,u.r),{c:u.c,r:u.r,left:0}]]),false);
+    if(b&&b.s>0) combat(u,b.e,b.type);
+    return;
+  }
+  const best=aiBestAttack(u,reach,u.hp>u.maxhp*0.7);
+  if(best&&best.s>1){ moveUnit(u,best.h.c,best.h.r,reach); }
+  else { const o=aiObjective(u); if(o) aiMoveToward(u,reach,o.x,o.d===3?3:1); }
+  aiUseAbilities(u);
+  if(alive(u)&&!u.attacked){
+    const b=aiBestAttack(u,new Map([[key(u.c,u.r),{c:u.c,r:u.r,left:0}]]),u.hp>u.maxhp*0.7);
+    if(b&&b.s>0) combat(u,b.e,b.type);
+  }
+  shop();
+}
+function aiUnitOrder(t){
+  const us=teamUnits(t).filter(u=>!u.isStruct&&!DEF[u.kind].minion);
+  return us.sort((a,b)=>(b.isChamp?1:0)-(a.isChamp?1:0));
+}
+function aiActUnit(u){
+  if(!alive(u)||(u.mpLeft<=0&&u.attacked)) return;
+  if(DEF[u.kind].worker) aiWorker(u); else if(u.isChamp) aiChamp(u); else aiSoldier(u);
+}
+
+/* ---------- save/load ---------- */
+function serialize(){ const P={}; for(const t in G.players){P[t]={...G.players[t]}; if(P[t].champSaved)P[t].champSaved={...P[t].champSaved};} return JSON.stringify({G:{...G,events:[],players:P},NID}); }
+function deserialize(s){ const o=JSON.parse(s); G=o.G; NID=o.NID; G.events=[]; reindex(); return G; }
+
+if(typeof module!=='undefined') module.exports={get G(){return G;},newGame,endTurn,startTurn,aiEconomy,aiUnitOrder,aiActUnit,setRNG:f=>RNG=f,teamUnits,DEF,TER,W,H,key,serialize,deserialize,reachable,forecast,useAbility,recruit,build,buy};
+
+</script>
+<script>
+/* ================= HEXFALL UI ================= */
+const $ = s => document.querySelector(s);
+const canvas = $('#map'), ctx = canvas.getContext('2d');
+const SQ3 = Math.sqrt(3), R = 34, OX = R*SQ3/2 + 6, OY = R + 6;
+const WORLD_W = OX*2 + R*SQ3*(W-0.5) + 6, WORLD_H = OY*2 + R*1.5*(H-1);
+const EMOJI = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+const TEAMCOL = {blue:'#4f8fdc', red:'#d4513c', neutral:'#b3a88f'};
+const TEAMDARK = {blue:'#1d3350', red:'#4a1f18', neutral:'#3a352b'};
+const SAVE_KEY = 'hexfall-save-v1';
+const UI = {sel:null, tile:null, mode:null, tab:'train', busy:false, hover:null, logOpen:false, champPick:'warden'};
+const cam = {x:0, y:0, z:1};
+let terrainCache = null, vis = new Map(), fx = [], dpr = 1;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function wpos(c,r){ return [OX + R*SQ3*(c + ((r&1)?0.5:0)), OY + R*1.5*r]; }
+function toScreen(x,y){ return [x*cam.z + cam.x, y*cam.z + cam.y]; }
+function hexAt(sx,sy){
+  const wx=(sx-cam.x)/cam.z-OX, wy=(sy-cam.y)/cam.z-OY;
+  const q=(SQ3/3*wx - wy/3)/R, rr=(2/3*wy)/R;
+  const [x,,z]=cubeRound(q,-q-rr,rr);
+  const c=x+(z-(z&1))/2;
+  return inB(c,z)?[c,z]:null;
+}
+function hexPath(g,x,y,s){ g.beginPath(); for(let i=0;i<6;i++){const a=Math.PI/180*(60*i-30); const px=x+s*Math.cos(a), py=y+s*Math.sin(a); i?g.lineTo(px,py):g.moveTo(px,py);} g.closePath(); }
+const selUnit = () => UI.sel!=null ? G.units.find(u=>u.id===UI.sel)||null : null;
+const myTurn = () => G && !G.over && G.turn==='blue' && !UI.busy;
+
+/* ---------- terrain cache ---------- */
+function isRiver(c,r){ return (r&1)?(c===11||c===12):c===12; }
+function shade(hex,amt){ const n=parseInt(hex.slice(1),16); let r=n>>16,g=n>>8&255,b=n&255; r=Math.max(0,Math.min(255,r+amt));g=Math.max(0,Math.min(255,g+amt));b=Math.max(0,Math.min(255,b+amt)); return `rgb(${r},${g},${b})`; }
+function buildTerrain(){
+  const S=2; const cv=document.createElement('canvas'); cv.width=Math.ceil(WORLD_W*S); cv.height=Math.ceil(WORLD_H*S);
+  const g=cv.getContext('2d'); g.scale(S,S);
+  g.fillStyle='#1c2a2c'; g.fillRect(0,0,WORLD_W,WORLD_H);
+  for(const t of G.tiles){
+    const [x,y]=wpos(t.c,t.r);
+    let base = t.t==='road' ? (isRiver(t.c,t.r)?TER.shallow.col:TER.grass.col) : TER[t.t].col;
+    hexPath(g,x,y,R+0.6); g.fillStyle=shade(base,Math.round((t.v-0.5)*14)); g.fill();
+  }
+  // roads as connected strips
+  g.lineCap='round';
+  for(const pass of [0,1]) for(const t of G.tiles){
+    if(t.t!=='road') continue; const [x,y]=wpos(t.c,t.r);
+    for(const [nc,nr] of nbrs(t.c,t.r)){
+      if(G.tiles[key(nc,nr)].t!=='road') continue;
+      const [x2,y2]=wpos(nc,nr); const bridge=isRiver(t.c,t.r)||isRiver(nc,nr);
+      g.strokeStyle= pass? (bridge?'#9a7449':'#d3b98a') : 'rgba(60,40,20,.35)';
+      g.lineWidth= pass? R*0.46 : R*0.62;
+      g.beginPath(); g.moveTo(x,y); g.lineTo((x+x2)/2,(y+y2)/2); g.stroke();
+    }
+  }
+  for(const t of G.tiles){
+    const [x,y]=wpos(t.c,t.r); const v=t.v;
+    if(t.t==='road'&&isRiver(t.c,t.r)){ g.strokeStyle='rgba(60,40,20,.5)'; g.lineWidth=1.2; for(let i=-2;i<=2;i++){g.beginPath();g.moveTo(x+i*6-3,y-8);g.lineTo(x+i*6+3,y+8);g.stroke();} }
+    if(t.t==='forest'){
+      const pts=[[-11,4],[9,6],[-1,-8],[4,12],[-9,-10]].slice(0,3+Math.floor(v*3));
+      for(const[dx,dy]of pts){ g.fillStyle='#2c5128'; g.beginPath(); g.moveTo(x+dx,y+dy-13); g.lineTo(x+dx-8,y+dy+5); g.lineTo(x+dx+8,y+dy+5); g.closePath(); g.fill();
+        g.fillStyle='#3b6a33'; g.beginPath(); g.moveTo(x+dx,y+dy-13); g.lineTo(x+dx-4,y+dy+1); g.lineTo(x+dx+3,y+dy-2); g.closePath(); g.fill();
+        g.fillStyle='#5a3e22'; g.fillRect(x+dx-1.5,y+dy+5,3,4); }
+    }
+    if(t.t==='hills'){ g.strokeStyle='#7a6840'; g.lineWidth=3; for(const[dx,dy,s]of[[-8,6,11],[8,-2,9]]){g.beginPath();g.arc(x+dx,y+dy+s*0.6,s,Math.PI*1.12,Math.PI*1.88);g.stroke();} }
+    if(t.t==='mountain'){ g.fillStyle='#5f5953'; g.beginPath(); g.moveTo(x-18,y+13); g.lineTo(x-3,y-15); g.lineTo(x+14,y+13); g.fill();
+      g.fillStyle='#6f6862'; g.beginPath(); g.moveTo(x+2,y+13); g.lineTo(x+11,y-5); g.lineTo(x+22,y+13); g.fill();
+      g.fillStyle='#e9e6df'; g.beginPath(); g.moveTo(x-3,y-15); g.lineTo(x-8,y-5); g.lineTo(x-3,y-7); g.lineTo(x+1,y-4); g.lineTo(x+2,y-9); g.closePath(); g.fill(); }
+    if(t.t==='shallow'||(t.t!=='road'&&isRiver(t.c,t.r))){ g.strokeStyle='rgba(220,240,255,.35)'; g.lineWidth=1.5; for(const dy of [-7,5]){g.beginPath(); for(let i=-12;i<=12;i+=2){const yy=y+dy+Math.sin((i+v*10)/3)*2; i===-12?g.moveTo(x+i,yy):g.lineTo(x+i,yy);} g.stroke();} }
+    if(t.t==='mine'){ g.fillStyle='#6d655b'; g.beginPath(); g.ellipse(x,y+6,16,9,0,0,Math.PI*2); g.fill(); g.fillStyle='#2e2a25'; g.beginPath(); g.ellipse(x,y+4,6,5,0,Math.PI,0); g.fill();
+      g.fillStyle='#f2cf5b'; for(const[dx,dy]of[[-10,6],[9,8],[4,11],[-4,10]]){g.beginPath();g.arc(x+dx,y+dy,2.2,0,7);g.fill();} }
+    hexPath(g,x,y,R); g.strokeStyle='rgba(0,0,0,.14)'; g.lineWidth=1; g.stroke();
+  }
+  // camp lairs
+  for(const s of G.camps){ const [x,y]=wpos(s.c,s.r); g.strokeStyle='rgba(40,30,20,.45)'; g.setLineDash([3,3]); g.lineWidth=1.5; g.beginPath(); g.arc(x,y,R*0.78,0,7); g.stroke(); g.setLineDash([]); }
+  terrainCache=cv;
+}
+
+/* ---------- camera ---------- */
+function resize(){
+  const r=canvas.parentElement.getBoundingClientRect(); dpr=window.devicePixelRatio||1;
+  canvas.width=Math.round(r.width*dpr); canvas.height=Math.round(r.height*dpr);
+}
+function cw(){return canvas.width/dpr;} function ch(){return canvas.height/dpr;}
+function fitCam(){ const z=Math.min(cw()/WORLD_W, ch()/WORLD_H); cam.z=z; cam.x=(cw()-WORLD_W*z)/2; cam.y=(ch()-WORLD_H*z)/2; }
+function clampCam(){ const m=120, z=cam.z; cam.x=Math.max(m-WORLD_W*z, Math.min(cw()-m, cam.x)); cam.y=Math.max(m-WORLD_H*z, Math.min(ch()-m, cam.y)); }
+function zoomAt(f,sx,sy){ const nz=Math.max(0.35,Math.min(2.6,cam.z*f)); const k=nz/cam.z; cam.x=sx-(sx-cam.x)*k; cam.y=sy-(sy-cam.y)*k; cam.z=nz; clampCam(); }
+function centerOn(c,r){ const [x,y]=wpos(c,r); if(cam.z<0.9) cam.z=Math.min(1.1, Math.max(cam.z, 0.9)); cam.x=cw()/2-x*cam.z; cam.y=ch()/2-y*cam.z; clampCam(); }
+
+/* ---------- highlights ---------- */
+function computeHighlights(){
+  const h={reach:null,attack:new Set(),build:null,ability:null};
+  if(!G||G.over) return h;
+  const u=selUnit();
+  if(UI.mode?.type==='build'){ const terr=territory('blue'); h.build=new Set(); for(const k of terr){ if(canBuild('blue',k%W,Math.floor(k/W),terr)) h.build.add(k);} return h; }
+  if(UI.mode?.type==='ability'&&u){ h.ability=new Set(abilityTargets(u,abilityList(u)[UI.mode.idx]).map(([c,r])=>key(c,r))); return h; }
+  if(u&&u.team==='blue'&&!u.isStruct&&myTurn()){
+    const reach=reachable(u); h.reach=reach;
+    if(!u.attacked) for(const[,p]of reach) for(const[c,r]of nbrs(p.c,p.r)){ const e=unitAt(c,r); if(e&&isEnemy(u,e)) h.attack.add(key(c,r)); }
+  }
+  return h;
+}
+let HL = {reach:null,attack:new Set()}; 
+function refresh(){ HL=computeHighlights(); renderPanel(); renderBar(); renderLog(); }
+
+/* ---------- drawing ---------- */
+function draw(now){
+  requestAnimationFrame(draw);
+  if(!G||!terrainCache) return;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.fillStyle='#1c2a2c'; ctx.fillRect(0,0,cw(),ch());
+  ctx.setTransform(dpr*cam.z,0,0,dpr*cam.z,dpr*cam.x,dpr*cam.y);
+  ctx.imageSmoothingEnabled=true;
+  ctx.drawImage(terrainCache,0,0,WORLD_W,WORLD_H);
+  const tint=PHASES[G.phase].tint; if(tint){ ctx.fillStyle=tint; ctx.fillRect(0,0,WORLD_W,WORLD_H); }
+
+  // highlights
+  const hl=HL;
+  if(hl.build){ for(const k of hl.build){ const[x,y]=wpos(k%W,Math.floor(k/W)); hexPath(ctx,x,y,R-2); ctx.fillStyle='rgba(240,200,90,.22)'; ctx.fill(); ctx.strokeStyle='rgba(240,200,90,.9)'; ctx.lineWidth=2; ctx.stroke(); } }
+  if(hl.ability){ for(const k of hl.ability){ const[x,y]=wpos(k%W,Math.floor(k/W)); hexPath(ctx,x,y,R-2); ctx.fillStyle='rgba(180,120,255,.22)'; ctx.fill(); ctx.strokeStyle='rgba(200,160,255,.9)'; ctx.lineWidth=2; ctx.stroke(); } }
+  if(hl.reach){ for(const[k,p]of hl.reach){ const[x,y]=wpos(p.c,p.r); hexPath(ctx,x,y,R-2); ctx.fillStyle='rgba(255,252,225,.30)'; ctx.fill(); ctx.strokeStyle='rgba(255,250,220,.55)'; ctx.lineWidth=1.2; ctx.stroke(); } }
+  for(const k of hl.attack){ const[x,y]=wpos(k%W,Math.floor(k/W)); hexPath(ctx,x,y,R-3); ctx.strokeStyle='rgba(255,90,70,.95)'; ctx.lineWidth=3; ctx.stroke(); }
+  if(UI.hover){ const[x,y]=wpos(...UI.hover); hexPath(ctx,x,y,R-1); ctx.strokeStyle='rgba(255,245,215,.8)'; ctx.lineWidth=1.8; ctx.stroke(); }
+  if(UI.tile&&!selUnit()){ const[x,y]=wpos(...UI.tile); hexPath(ctx,x,y,R-1); ctx.strokeStyle='#f0d58e'; ctx.lineWidth=2.5; ctx.stroke(); }
+
+  // units
+  const seen=new Set();
+  const order=[...G.units].sort((a,b)=>a.r-b.r);
+  for(const u of order){
+    seen.add(u.id);
+    const [tx,ty]=wpos(u.c,u.r);
+    let v=vis.get(u.id); if(!v){ v={x:tx,y:ty}; vis.set(u.id,v); }
+    const k=reduceMotion?1:0.22; v.x+=(tx-v.x)*k; v.y+=(ty-v.y)*k; if(Math.abs(tx-v.x)<0.3){v.x=tx;v.y=ty;}
+    drawUnit(u,v.x,v.y);
+  }
+  for(const id of vis.keys()) if(!seen.has(id)) vis.delete(id);
+
+  // effects
+  const t=now||performance.now();
+  fx=fx.filter(f=>t-f.t0<f.dur+(f.delay||0));
+  for(const f of fx){
+    const p=(t-f.t0-(f.delay||0))/f.dur; if(p<0) continue;
+    if(f.type==='float'){
+      ctx.globalAlpha=Math.max(0,1-p*p); ctx.font='800 15px "Alegreya Sans",sans-serif'; ctx.textAlign='center';
+      ctx.lineWidth=3.5; ctx.strokeStyle='rgba(20,12,6,.9)'; const y=f.y-22-p*26; ctx.strokeText(f.text,f.x,y); ctx.fillStyle=f.col; ctx.fillText(f.text,f.x,y); ctx.globalAlpha=1;
+    } else if(f.type==='shot'){
+      ctx.globalAlpha=1-p; ctx.strokeStyle='#ffe29a'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(f.x1,f.y1-14); const q=Math.min(1,p*2.5); ctx.lineTo(f.x1+(f.x2-f.x1)*q,f.y1-14+(f.y2-f.y1+14)*q); ctx.stroke(); ctx.globalAlpha=1;
+    } else if(f.type==='boom'){
+      ctx.globalAlpha=1-p; ctx.fillStyle='rgba(255,140,50,.5)'; ctx.beginPath(); ctx.arc(f.x,f.y,R*(0.5+p*1.6),0,7); ctx.fill(); ctx.globalAlpha=1;
+    } else if(f.type==='death'){
+      ctx.globalAlpha=1-p; ctx.font=`${22}px ${EMOJI}`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(f.icon,f.x,f.y-p*10); ctx.fillText('💀',f.x+10,f.y-12-p*10); ctx.globalAlpha=1; ctx.textBaseline='alphabetic';
+    }
+  }
+}
+function drawUnit(u,x,y){
+  const d=DEF[u.kind]; const small=d.minion; const rr=small?R*0.4:R*0.58;
+  const tired = u.team==='blue'&&G.turn==='blue'&&!u.isStruct&&u.mpLeft<=0&&u.attacked;
+  ctx.globalAlpha=tired?0.6:1;
+  if(u.isStruct){
+    const s=u.kind==='keep'?R*0.78:R*0.62;
+    ctx.fillStyle=TEAMDARK[u.team]; ctx.strokeStyle=TEAMCOL[u.team]; ctx.lineWidth=3;
+    hexPath(ctx,x,y,s); ctx.fill(); ctx.stroke();
+    if(isInvuln(u)){ ctx.strokeStyle='rgba(200,225,255,.55)'; ctx.lineWidth=2; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.arc(x,y,R*0.95,0,7); ctx.stroke(); ctx.setLineDash([]); }
+  } else {
+    ctx.fillStyle='rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(x,y+rr*0.85,rr*0.9,rr*0.3,0,0,7); ctx.fill();
+    ctx.fillStyle=TEAMDARK[u.team]; ctx.beginPath(); ctx.arc(x,y,rr,0,7); ctx.fill();
+    ctx.strokeStyle=TEAMCOL[u.team]; ctx.lineWidth=small?2:3; ctx.stroke();
+    if(u.isChamp){ ctx.strokeStyle='#e7c46a'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(x,y,rr+3,0,7); ctx.stroke(); }
+  }
+  ctx.font=`${Math.round((u.isStruct?R*0.7:rr*1.05))}px ${EMOJI}`; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(d.icon,x,y+1); ctx.textBaseline='alphabetic';
+  if(selUnit()===u){ ctx.strokeStyle='#fff3c8'; ctx.lineWidth=2.5; ctx.setLineDash([5,3]); ctx.beginPath(); ctx.arc(x,y,(u.isStruct?R*0.82:rr+6),0,7); ctx.stroke(); ctx.setLineDash([]); }
+  // hp bar
+  const bw=small?R*0.8:R*1.1, by=y+(u.isStruct?R*0.62:rr)+3, bx=x-bw/2, ratio=Math.max(0,u.hp/u.maxhp);
+  ctx.fillStyle='rgba(15,10,6,.85)'; ctx.fillRect(bx-1,by-1,bw+2,small?4:6);
+  ctx.fillStyle=ratio>0.6?'#7fd66b':ratio>0.3?'#e6c14a':'#e0573f'; ctx.fillRect(bx,by,bw*ratio,small?2:4);
+  if(u.isChamp||(!u.isStruct&&!small&&u.team!=='neutral'&&u.lvl>1)){
+    const lx=x-rr+1, ly=y-rr+2; ctx.fillStyle='#e7c46a'; ctx.beginPath(); ctx.arc(lx,ly,7,0,7); ctx.fill();
+    ctx.fillStyle='#23180e'; ctx.font='800 10px "Alegreya Sans",sans-serif'; ctx.textAlign='center'; ctx.fillText(u.lvl,lx,ly+3.5);
+  }
+  if(u.stun||u.slow||u.shield){ ctx.font=`11px ${EMOJI}`; ctx.fillText(u.stun?'💫':u.slow?'❄️':'🛡️',x+rr-2,y-rr+6); }
+  ctx.globalAlpha=1;
+}
+function flushEvents(){
+  const t=performance.now(); let n=0;
+  for(const e of G.events){
+    if(e.type==='float'){ const [x,y]=wpos(e.c,e.r); fx.push({type:'float',x:x+((n%3)-1)*8,y,text:e.text,col:e.col,t0:t,delay:(e.delay||0)+n*110,dur:1100}); n++; }
+    else if(e.type==='shot'){ const [x1,y1]=wpos(e.fc,e.fr),[x2,y2]=wpos(e.c,e.r); fx.push({type:'shot',x1,y1,x2,y2,t0:t,dur:420}); }
+    else if(e.type==='boom'){ const [x,y]=wpos(e.c,e.r); fx.push({type:'boom',x,y,t0:t,dur:600}); }
+    else if(e.type==='death'){ const [x,y]=wpos(e.c,e.r); fx.push({type:'death',x,y,icon:e.icon,t0:t,delay:n*110,dur:700}); }
+  }
+  G.events.length=0;
+}
+
+/* ---------- input ---------- */
+const ptrs=new Map(); let drag=null, pinch=null;
+canvas.addEventListener('pointerdown',e=>{
+  canvas.setPointerCapture(e.pointerId); ptrs.set(e.pointerId,{x:e.offsetX,y:e.offsetY});
+  if(ptrs.size===1){ drag={sx:e.offsetX,sy:e.offsetY,cx:cam.x,cy:cam.y,moved:false}; }
+  else if(ptrs.size===2){ const [a,b]=[...ptrs.values()]; pinch={d:Math.hypot(a.x-b.x,a.y-b.y),z:cam.z}; if(drag)drag.moved=true; }
+});
+canvas.addEventListener('pointermove',e=>{
+  if(ptrs.has(e.pointerId)) ptrs.set(e.pointerId,{x:e.offsetX,y:e.offsetY});
+  if(ptrs.size===2&&pinch){ const [a,b]=[...ptrs.values()]; const d=Math.hypot(a.x-b.x,a.y-b.y); zoomAt((pinch.z*d/pinch.d)/cam.z,(a.x+b.x)/2,(a.y+b.y)/2); return; }
+  if(drag&&ptrs.size===1){ const dx=e.offsetX-drag.sx, dy=e.offsetY-drag.sy; if(Math.hypot(dx,dy)>7) drag.moved=true; if(drag.moved){ cam.x=drag.cx+dx; cam.y=drag.cy+dy; clampCam(); } }
+  if(e.pointerType==='mouse') hoverAt(e.offsetX,e.offsetY);
+});
+function endPtr(e){
+  const wasTap = drag && !drag.moved && ptrs.size===1;
+  ptrs.delete(e.pointerId); if(ptrs.size<2) pinch=null;
+  if(ptrs.size===0){ if(wasTap&&e.type==='pointerup'){ const h=hexAt(e.offsetX,e.offsetY); if(h) tap(h[0],h[1]); } drag=null; }
+}
+canvas.addEventListener('pointerup',endPtr); canvas.addEventListener('pointercancel',endPtr);
+canvas.addEventListener('pointerleave',()=>{UI.hover=null; $('#tip').style.display='none';});
+canvas.addEventListener('wheel',e=>{ e.preventDefault(); zoomAt(e.deltaY<0?1.12:1/1.12,e.offsetX,e.offsetY); },{passive:false});
+$('#zin').onclick=()=>zoomAt(1.2,cw()/2,ch()/2);
+$('#zout').onclick=()=>zoomAt(1/1.2,cw()/2,ch()/2);
+$('#zfit').onclick=()=>fitCam();
+
+function hoverAt(sx,sy){
+  const h=hexAt(sx,sy); UI.hover=h; const tip=$('#tip');
+  if(!h||!G){ tip.style.display='none'; return; }
+  const t=G.tiles[key(h[0],h[1])], u=unitAt(h[0],h[1]);
+  const T=TER[t.t==='road'&&isRiver(h[0],h[1])?'road':t.t];
+  let html = u ? `<b>${DEF[u.kind].name}</b> ${u.hp}/${u.maxhp} HP<br>` : '';
+  html += `${t.t==='road'&&isRiver(...h)?'Bridge':T.name}: ${u&&u.isStruct?'':T.def+'% defense, '}${T.move>=99?'impassable':'move cost '+T.move}`;
+  const s=selUnit();
+  if(u&&s&&s.team==='blue'&&isEnemy(s,u)&&!s.attacked&&HL.attack.has(key(...h))) html+='<br><span style="color:#ffb4a4">Click to plan an attack</span>';
+  tip.innerHTML=html; tip.style.display='block';
+  const box=canvas.getBoundingClientRect();
+  tip.style.left=Math.min(sx+16, box.width-tip.offsetWidth-8)+'px'; tip.style.top=Math.min(sy+16, box.height-tip.offsetHeight-8)+'px';
+}
+
+function toast(msg){ const b=$('#banner'); b.textContent=msg; b.classList.add('show'); clearTimeout(toast.t); toast.t=setTimeout(()=>b.classList.remove('show'),1600); }
+
+function tap(c,r){
+  if(!G||G.over) return;
+  const u=unitAt(c,r), s=selUnit();
+  if(UI.mode?.type==='build'){
+    if(!myTurn()) return;
+    const res=build('blue',UI.mode.kind,c,r);
+    if(typeof res==='string'){ toast(res); } else { UI.mode=null; UI.sel=res.id; UI.tab='train'; }
+    flushEvents(); refresh(); return;
+  }
+  if(UI.mode?.type==='ability'&&s){
+    if(!myTurn()) return;
+    if(HL.ability&&HL.ability.has(key(c,r))){ const res=useAbility(s,UI.mode.idx,c,r); if(res!==true) toast(res); UI.mode=null; flushEvents(); afterAction(); return; }
+    UI.mode=null; refresh(); return;
+  }
+  if(s&&s.team==='blue'&&!s.isStruct&&myTurn()){
+    if(!u&&HL.reach&&HL.reach.has(key(c,r))){ moveUnit(s,c,r,HL.reach); flushEvents(); refresh(); return; }
+    if(u&&isEnemy(s,u)&&!s.attacked&&HL.attack.has(key(c,r))){ planAttack(s,u); return; }
+  }
+  if(u){ UI.sel=u.id; UI.tile=null; if(u.kind==='keep'||u.kind==='barracks') UI.tab=UI.tab||'train'; }
+  else { UI.sel=null; UI.tile=[c,r]; }
+  refresh();
+}
+
+/* ---------- attacks ---------- */
+function planAttack(s,e){
+  let hex=null;
+  if(udist(s,e)===1) hex={c:s.c,r:s.r};
+  else {
+    let best=null;
+    for(const[,p]of HL.reach){ if(dist(p.c,p.r,e.c,e.r)!==1) continue; const sc=defenseOf(s,p.c,p.r)*10+p.left; if(!best||sc>best.sc) best={sc,p}; }
+    if(!best) return; hex=best.p;
+  }
+  const types=['melee','ranged'].filter(t=>weapon(s,t));
+  let type = types.includes('ranged') && (!weapon(e,'ranged')||e.isStruct) ? 'ranged' : types[0];
+  const render=()=>{
+    const f=forecast(s,e,type,hex.c,hex.r,400);
+    const pct=x=>Math.round(x*100)+'%';
+    $('#sheet').className='sheet small';
+    $('#sheet').innerHTML=`
+      <h3 style="margin-top:0">Attack ${DEF[e.kind].name}</h3>
+      ${types.length>1?`<div class="weps" role="group" aria-label="Weapon">${types.map(t=>{const w=weapon(s,t);return `<button class="btn" data-w="${t}" aria-pressed="${t===type}">${t==='melee'?'Melee':'Ranged'} ${w.dmg}×${w.n}</button>`;}).join('')}</div>`:''}
+      <div class="vs">
+        <div><h4>${DEF[s.kind].icon} ${DEF[s.kind].name}</h4>
+          <div>${f.A.dmg} × ${f.A.n} at ${f.ha}% to hit${f.A.magic?' (magic)':''}</div>
+          <div class="note">Expected damage dealt</div><div class="big">${f.inv?0:f.dealt.toFixed(1)}</div>
+          <div>Kill chance <b>${pct(f.kill)}</b></div></div>
+        <div><h4>${DEF[e.kind].icon} ${DEF[e.kind].name}</h4>
+          <div>${f.D?`${f.D.dmg} × ${f.D.n} at ${f.hd}% to hit`:'Cannot strike back'}</div>
+          <div class="note">Expected damage taken</div><div class="big">${f.taken.toFixed(1)}</div>
+          <div>Your death risk <b style="color:${f.death>0.2?'var(--bad)':'inherit'}">${pct(f.death)}</b></div></div>
+      </div>
+      ${f.inv?'<p class="note">This Keep is shielded until one of its lane towers is destroyed.</p>':''}
+      <p class="note">Hit chance is 100% minus the defender’s terrain defense. ${todNote(s)}</p>
+      <div class="actions"><button class="btn primary" id="doAtk">Attack</button><button class="btn" id="noAtk">Cancel</button></div>`;
+    $('#sheet').querySelectorAll('[data-w]').forEach(b=>b.onclick=()=>{type=b.dataset.w; render();});
+    $('#doAtk').onclick=()=>{ closeModal(); if(!alive(s)||!alive(e)) return; if(hex.c!==s.c||hex.r!==s.r) moveUnit(s,hex.c,hex.r,HL.reach); if(udist(s,e)===1) combat(s,e,type); flushEvents(); afterAction(); };
+    $('#noAtk').onclick=closeModal;
+  };
+  render(); openModal(); $('#doAtk').focus();
+}
+function todNote(u){ const m=todMod(u); if(!m) return ''; return `${PHASES[G.phase].name} gives ${DEF[u.kind].name} ${m>0?'+':''}${m}% damage.`; }
+function afterAction(){ if(!selUnit()) UI.sel=null; checkOver(); refresh(); }
+
+/* ---------- turn flow ---------- */
+async function endPlayerTurn(){
+  if(!myTurn()) return;
+  UI.busy=true; UI.mode=null; refresh();
+  endTurn('blue'); flushEvents(); refresh();
+  if(checkOver()) { UI.busy=false; return; }
+  toast('The Horde is moving');
+  await sleep(500);
+  aiEconomy('red'); flushEvents(); refresh();
+  for(const u of aiUnitOrder('red')){
+    if(G.over) break;
+    const before=u.c+','+u.r+','+u.hp;
+    aiActUnit(u);
+    const acted = G.events.length>0 || before!==(u.c+','+u.r+','+u.hp);
+    flushEvents(); refresh();
+    if(acted) await sleep(reduceMotion?60:230);
+  }
+  if(!G.over){ aiEconomy('red'); endTurn('red'); flushEvents(); }
+  UI.busy=false;
+  if(!checkOver()){ toast(`Round ${G.round}: your turn`); save(); }
+  if(UI.sel&&!selUnit()) UI.sel=null;
+  refresh();
+}
+$('#endBtn').onclick=endPlayerTurn;
+
+function checkOver(){
+  if(!G.over) return false;
+  if(checkOver.shown) return true; checkOver.shown=true;
+  try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
+  const win=G.over==='blue', P=G.players.blue;
+  $('#sheet').className='sheet small';
+  $('#sheet').innerHTML=`<p class="title" style="font-size:54px">${win?'Victory':'Defeat'}</p>
+    <p class="tagline">${win?'The Horde’s Keep lies in ruins.':'Your Keep has fallen to the Horde.'}</p>
+    <div class="row"><span>Rounds played</span><b>${G.round}</b></div>
+    <div class="row"><span>Enemies defeated</span><b>${P.kills}</b></div>
+    <div class="row"><span>Research completed</span><b>${Object.keys(P.tech).length} of ${Object.keys(TECH).length}</b></div>
+    <div class="actions"><button class="btn primary" id="again">Play again</button><button class="btn" id="look">View the battlefield</button></div>`;
+  openModal();
+  $('#again').onclick=()=>{ closeModal(); showStart(); };
+  $('#look').onclick=closeModal;
+  return true;
+}
+
+/* ---------- panel ---------- */
+const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function costStr(c){ return `${c[0]}🪙${c[1]?` ${c[1]}🪵`:''}`; }
+function meter(u){ const r=u.hp/u.maxhp; return `<div class="meter"><i style="width:${r*100}%;background:${r>0.6?'#7fd66b':r>0.3?'#e6c14a':'#e0573f'}"></i></div>`; }
+function renderBar(){
+  const P=G.players.blue;
+  $('#gold').textContent=P.gold; $('#lumber').textContent=P.lumber;
+  $('#goldInc').textContent='+'+P.income[0]; $('#lumInc').textContent=P.income[1]?'+'+P.income[1]:'';
+  const ph=PHASES[G.phase]; const icon=['🌅','☀️','☀️','🌇','🌙','🌙'][G.phase];
+  $('#clock').innerHTML=`<span class="sun">${icon}</span><span>Round <b>${G.round}</b>, ${ph.name}</span><span class="label">${ph.law?`(Kingdom ${ph.law>0?'+':''}${ph.law}%, Horde ${ph.law>0?'−':'+'}${Math.abs(ph.law)}%)`:''}</span>`;
+  $('#endBtn').disabled=!myTurn();
+  $('#endBtn').textContent=UI.busy?'Horde’s turn…':'End turn';
+}
+function renderLog(){
+  const items=G.log.slice(UI.logOpen?-14:(cw()<600?-1:-3));
+  $('#log').innerHTML=items.map(l=>`<p class="${l.team}">${esc(l.text)}</p>`).join('')+`<div class="hint">${UI.logOpen?'Click to collapse':'Click for more'}</div>`;
+}
+$('#log').onclick=()=>{UI.logOpen=!UI.logOpen; renderLog();};
+
+function renderPanel(){
+  const el=$('#panel'); const u=selUnit(); let h='';
+  if(UI.mode?.type==='build') h+=`<div class="mode-bar"><span>Place your ${DEF[UI.mode.kind].name.toLowerCase()} on a highlighted hex.</span><button class="btn" data-act="cancel">Cancel</button></div>`;
+  if(UI.mode?.type==='ability'&&u) h+=`<div class="mode-bar"><span>Choose a target for ${abilityList(u)[UI.mode.idx].name}.</span><button class="btn" data-act="cancel">Cancel</button></div>`;
+  if(!u&&UI.tile) h+=tilePanel(...UI.tile);
+  else if(!u) h+=overviewPanel();
+  else h+=unitPanel(u);
+  el.innerHTML=h;
+  el.querySelectorAll('[data-act]').forEach(b=>b.addEventListener('click',()=>panelAction(b.dataset)));
+}
+function overviewPanel(){
+  const P=G.players.blue, ch=champOf('blue');
+  const ready=teamUnits('blue').filter(u=>!u.isStruct&&!DEF[u.kind].minion&&(u.mpLeft>0||!u.attacked));
+  let h=`<div class="sel-head"><div class="sel-icon blue">🏰</div><div><h2>${FACTION.blue.name}</h2><div class="sub">${G.over?'The battle is over':myTurn()?'Your turn':'The Horde is taking its turn'}</div></div></div>`;
+  h+=`<p class="note">Select a unit to move it. Select your Keep to train troops, build and research.</p>`;
+  h+=`<div class="cards">`;
+  h+=`<button class="card" data-act="select" data-id="${keepOf('blue')?.id}"><span class="ic">🏰</span><span class="nm">Your Keep</span><span class="cost"></span><span class="ds">Train, build and research</span></button>`;
+  if(ch) h+=`<button class="card" data-act="select" data-id="${ch.id}"><span class="ic">${DEF[ch.kind].icon}</span><span class="nm">${DEF[ch.kind].name}</span><span class="cost">Lv ${ch.lvl}</span><span class="ds">${ch.hp}/${ch.maxhp} HP</span></button>`;
+  else h+=`<p class="note">Your champion returns in ${P.champDead} turn${P.champDead===1?'':'s'}.</p>`;
+  h+=`</div>`;
+  if(ready.length) h+=`<h3>Ready to act</h3><div class="chips">${ready.map(u=>`<button class="chip" data-act="select" data-id="${u.id}">${DEF[u.kind].icon} ${DEF[u.kind].name}</button>`).join('')}</div>`;
+  const wave=3-((G.round-1)%3);
+  h+=`<h3>This round</h3><div class="row"><span>Next minion wave</span><b>${wave===3?'Spawned this round':'in '+wave+' round'+(wave>1?'s':'')}</b></div>`;
+  h+=`<div class="row"><span>Research</span><b>${P.res?`${TECH[P.res.id].name} (${P.res.left})`:'Idle'}</b></div>`;
+  if(P.buff) h+=`<div class="row"><span>Drake’s blessing</span><b>${P.buff} turns</b></div>`;
+  const et=G.units.filter(x=>x.kind==='tower'&&x.team==='red').length;
+  h+=`<div class="row"><span>Enemy lane towers</span><b>${et} of 3</b></div>`;
+  return h;
+}
+function tilePanel(c,r){
+  const t=G.tiles[key(c,r)]; const bridge=t.t==='road'&&isRiver(c,r); const T=TER[t.t];
+  let h=`<div class="sel-head"><div class="sel-icon">${{grass:'🌾',forest:'🌲',hills:'⛰️',mountain:'🏔️',shallow:'🌊',road:bridge?'🌉':'🛤️',mine:'🪙'}[t.t]}</div><div><h2>${bridge?'Bridge':T.name}</h2><div class="sub">Terrain</div></div></div>`;
+  h+=`<div class="row"><span>Defense</span><b>${T.def}%</b></div><div class="row"><span>Movement cost</span><b>${T.move>=99?'Impassable':T.move}</b></div>`;
+  const notes={forest:'A worker standing here gathers 4 lumber a turn. Lumber mills gain from adjacent forests.',mine:'A worker standing here gathers 8 gold a turn.',road:'Lane. Minion waves march along this road.',shallow:'Slow to cross and hard to defend.',hills:'Good defensive ground. You can build here.',grass:'You can build here if it is inside your territory.'};
+  if(notes[t.t]) h+=`<p class="note">${notes[t.t]}</p>`;
+  h+=`<p class="note">Units on terrain with higher defense are harder to hit.</p>`;
+  return h;
+}
+function unitPanel(u){
+  const d=DEF[u.kind], mine=u.team==='blue';
+  let h=`<div class="sel-head"><div class="sel-icon ${u.team} ${u.isChamp?'is-champ':''}">${d.icon}</div><div><h2>${d.name}</h2><div class="sub">${u.team==='neutral'?'Neutral camp':u.team==='blue'?'Your '+(u.isStruct?'building':'unit'):'Horde '+(u.isStruct?'building':'unit')}${u.isChamp?`, level ${u.lvl} ${d.role.toLowerCase()}`:''}</div></div></div>`;
+  h+=`<div class="row"><span>Health</span><b>${u.hp} / ${u.maxhp}</b></div>${meter(u)}`;
+  if(!u.isStruct&&d.lvl!==undefined&&!d.minion&&!d.camp||u.isChamp) h+=`<div class="row"><span>${u.isChamp?'Experience':'Experience to promotion'}</span><b>${u.xp} / ${u.maxxp}</b></div>`;
+  if(!u.isStruct){
+    h+=`<div class="row"><span>Movement</span><b>${mine&&G.turn==='blue'?u.mpLeft+' of ':''}${mpMax(u)}</b></div>`;
+    h+=`<div class="row"><span>Defense here</span><b>${defenseOf(u)}%</b></div>`;
+    h+=`<div class="row"><span>Alignment</span><b>${d.align}${todMod(u)?` (${todMod(u)>0?'+':''}${todMod(u)}% now)`:''}</b></div>`;
+    for(const t of ['melee','ranged']){ const w=weapon(u,t); if(w) h+=`<div class="row"><span>${t==='melee'?'Melee':'Ranged'}</span><b>${w.dmg} × ${w.n}${w.magic?', magic':''}</b></div>`; }
+    if(u.stun) h+=`<p class="note">Stunned: loses its next turn.</p>`;
+    if(u.slow) h+=`<p class="note">Slowed: 1 move next turn.</p>`;
+  } else if(d.shot) h+=`<div class="row"><span>Shoots</span><b>${d.shot} damage, range ${d.range}</b></div>`;
+  h+=`<p class="note">${d.desc}</p>`;
+  if(isInvuln(u)) h+=`<p class="note">Shielded: destroy one of this side’s lane towers first.</p>`;
+  if(mine&&!u.isStruct&&myTurn()){
+    if(u.attacked&&u.mpLeft<=0) h+=`<p class="note">This unit is done for the turn.</p>`;
+    else h+=`<p class="note">Click a highlighted hex to move, or a red-outlined enemy to attack.</p>`;
+  }
+  if(u.isChamp&&mine) h+=champPanel(u);
+  if(mine&&(u.kind==='keep'||u.kind==='barracks')) h+=keepPanel(u);
+  return h;
+}
+function champPanel(u){
+  const P=G.players.blue; let h=`<h3>Abilities</h3><div class="cards">`;
+  abilityList(u).forEach((a,i)=>{
+    const why=abilityReady(u,a); const k='QWER'[i];
+    const desc=a.desc.replace('{d}',a.dmg?Math.round(a.dmg(u)*(u.items.includes('rod')?1.3:1)):'');
+    h+=`<button class="card ab ${UI.mode?.idx===i?'on':''}" data-act="ability" data-i="${i}" ${why||!myTurn()?'disabled':''} title="Hotkey ${k}"><span class="ic">${k}</span><span class="nm">${a.name}</span><span class="cost">${why?esc(why.replace('Already acted this turn','Used action')):'Ready'}</span><span class="ds">${desc} Cooldown ${a.cd}.</span></button>`;
+  });
+  h+=`</div><h3>Gear</h3>`;
+  h+=u.items.length?`<div class="chips">${u.items.map(i=>`<span class="chip" title="${ITEMS[i].desc}">${ITEMS[i].icon} ${ITEMS[i].name}</span>`).join('')}</div>`:`<p class="note">No items yet.</p>`;
+  if(u.potions) h+=`<div class="actions" style="margin-top:8px"><button class="btn" data-act="drink" ${u.hp>=u.maxhp||!myTurn()?'disabled':''}>Drink healing draught (${u.potions} left)</button></div>`;
+  if(nearKeep(u)){
+    h+=`<h3>Shop</h3><div class="cards">`;
+    for(const [id,it] of Object.entries(ITEMS)){
+      const own=u.items.includes(id); const dis=own||P.gold<it.cost||!myTurn()||(id!=='potion'&&u.items.length>=4)||(id==='potion'&&u.potions>=3);
+      h+=`<button class="card ${own?'done':''}" data-act="buy" data-id="${id}" ${dis?'disabled':''}><span class="ic">${it.icon}</span><span class="nm">${it.name}</span><span class="cost">${own?'Owned':it.cost+'🪙'}</span><span class="ds">${it.desc}</span></button>`;
+    }
+    h+=`</div>`;
+  } else h+=`<p class="note">Stand next to your Keep to shop and heal quickly.</p>`;
+  return h;
+}
+function keepPanel(u){
+  const P=G.players.blue; const tabs=u.kind==='keep'?['train','build','research']:['train'];
+  if(!tabs.includes(UI.tab)) UI.tab='train';
+  let h=`<div class="tabs" role="tablist">${tabs.map(t=>`<button role="tab" aria-selected="${UI.tab===t}" data-act="tab" data-t="${t}">${{train:'Train',build:'Build',research:'Research'}[t]}</button>`).join('')}</div>`;
+  const off=!myTurn();
+  if(UI.tab==='train'){
+    const hasB=hasBuilding('blue','barracks');
+    const list=[FACTION.blue.worker,...FACTION.blue.train];
+    h+=`<div class="cards">`;
+    for(const k of list){ const d=DEF[k]; const need=!d.worker&&!hasB; const dis=off||need||!afford(P,d.cost);
+      const w=['melee','ranged'].filter(t=>d[t]).map(t=>`${d[t][0]}×${d[t][1]} ${t}`).join(', ');
+      h+=`<button class="card" data-act="train" data-k="${k}" ${dis?'disabled':''}><span class="ic">${d.icon}</span><span class="nm">${d.name}</span><span class="cost">${costStr(d.cost)}</span><span class="ds">${need?'Needs a Barracks. ':''}${d.hp} HP, ${d.mp} moves, ${w}. ${d.desc}</span></button>`; }
+    h+=`</div><p class="note">New units appear next to your Keep${hasB?' or Barracks':''} and can act next turn.</p>`;
+  } else if(UI.tab==='build'){
+    const info={barracks:['⛺','Barracks','Unlocks soldiers. They can also muster here.'],mill:['🪵','Lumber mill','+2 lumber a turn for each adjacent forest.'],market:['💰','Market','+2 gold a turn for each adjacent building, Keep included.'],gtower:['🛖','Guard tower','Shoots enemies within 2 hexes for 7 damage.']};
+    h+=`<div class="cards">`;
+    for(const [k,b] of Object.entries(BUILD)){ const [ic,nm,ds]=info[k]; const dis=off||!afford(P,b.cost);
+      h+=`<button class="card ${UI.mode?.kind===k?'on':''}" data-act="build" data-k="${k}" ${dis?'disabled':''}><span class="ic">${ic}</span><span class="nm">${nm}</span><span class="cost">${costStr(b.cost)}</span><span class="ds">${ds}</span></button>`; }
+    h+=`</div><p class="note">Build on grass or hills within 2 hexes of your Keep, or next to another building. Placement matters: put mills beside forests and markets beside other buildings.</p>`;
+  } else {
+    h+=P.res?`<p class="note">Researching <b>${TECH[P.res.id].name}</b>, done in ${P.res.left} turn${P.res.left>1?'s':''}.</p>`:`<p class="note">Pick one technology at a time.</p>`;
+    h+=`<div class="cards">`;
+    for(const [id,t] of Object.entries(TECH)){
+      const done=P.tech[id], cur=P.res?.id===id, avail=techAvailable(P,id);
+      const status=done?'Done':cur?`${P.res.left} left`:costStr(t.cost);
+      const dis=off||done||cur||!!P.res||!avail||!afford(P,t.cost);
+      h+=`<button class="card ${done?'done':''} ${cur?'on':''}" data-act="research" data-id="${id}" ${dis?'disabled':''}><span class="ic">${done?'✅':cur?'⏳':avail?'📜':'🔒'}</span><span class="nm">${t.name}</span><span class="cost">${status}</span><span class="ds">${t.desc}${t.req&&!P.tech[t.req]?` Requires ${TECH[t.req].name}.`:''} ${t.turns} turns.</span></button>`;
+    }
+    h+=`</div>`;
+  }
+  return h;
+}
+function panelAction(ds){
+  const u=selUnit();
+  switch(ds.act){
+    case 'cancel': UI.mode=null; break;
+    case 'select': { const x=G.units.find(v=>v.id===+ds.id); if(x){UI.sel=x.id; UI.tile=null; centerOn(x.c,x.r);} break; }
+    case 'tab': UI.tab=ds.t; UI.mode=null; break;
+    case 'train': { const r=recruit('blue',ds.k); if(typeof r==='string') toast(r); else log(`You trained a ${DEF[ds.k].name.toLowerCase()}.`,'blue'); break; }
+    case 'build': UI.mode = UI.mode?.kind===ds.k ? null : {type:'build',kind:ds.k}; break;
+    case 'research': { const r=startResearch('blue',ds.id); if(r!==true) toast(r); else log(`You began researching ${TECH[ds.id].name}.`,'blue'); break; }
+    case 'buy': { const r=buy(u,ds.id); if(r!==true) toast(r); else toast(`Bought ${ITEMS[ds.id].name}`); break; }
+    case 'drink': drink(u); break;
+    case 'ability': triggerAbility(+ds.i); return;
+  }
+  flushEvents(); refresh();
+}
+function triggerAbility(i){
+  const u=selUnit(); if(!u||!u.isChamp||u.team!=='blue'||!myTurn()) return;
+  const a=abilityList(u)[i]; if(!a) return;
+  const why=abilityReady(u,a); if(why){ toast(why); return; }
+  if(a.tgt==='self'){ const r=useAbility(u,i); if(r!==true) toast(r); flushEvents(); afterAction(); return; }
+  if(UI.mode?.type==='ability'&&UI.mode.idx===i){ UI.mode=null; refresh(); return; }
+  if(!abilityTargets(u,a).length){ toast('No valid targets in range'); return; }
+  UI.mode={type:'ability',idx:i}; refresh();
+}
+
+/* ---------- keyboard ---------- */
+document.addEventListener('keydown',e=>{
+  if($('#modal').classList.contains('open')){ if(e.key==='Escape'&&G&&!G.over&&$('#noAtk')) closeModal(); return; }
+  if(!G) return;
+  const k=e.key.toLowerCase();
+  if(k==='escape'){ UI.mode=null; UI.sel=null; UI.tile=null; refresh(); }
+  else if(k==='enter'){ endPlayerTurn(); }
+  else if('qwer'.includes(k)&&k.length===1){ let u=selUnit(); if(!u||!u.isChamp||u.team!=='blue'){ u=champOf('blue'); if(u) UI.sel=u.id; } if(u) triggerAbility('qwer'.indexOf(k)); }
+  else if(k==='tab'||k===' '){ e.preventDefault(); const ready=teamUnits('blue').filter(u=>!u.isStruct&&!DEF[u.kind].minion&&(u.mpLeft>0||!u.attacked)); if(ready.length){ const i=(ready.findIndex(u=>u.id===UI.sel)+1)%ready.length; UI.sel=ready[i].id; UI.tile=null; centerOn(ready[i].c,ready[i].r); refresh(); } }
+  else if(k==='c'){ const u=champOf('blue'); if(u){UI.sel=u.id; centerOn(u.c,u.r); refresh();} }
+  else if(k==='k'){ const u=keepOf('blue'); if(u){UI.sel=u.id; centerOn(u.c,u.r); refresh();} }
+  else if(k==='?'||k==='h'){ showHelp(); }
+});
+
+/* ---------- modals ---------- */
+function openModal(){ $('#modal').classList.add('open'); }
+function closeModal(){ $('#modal').classList.remove('open'); }
+function abilitySummary(kind){ return ABIL[kind].map((a,i)=>`<li><b>${'QWER'[i]} ${a.name}.</b> ${a.desc.replace('{d}',a.dmg?a.dmg({lvl:1,items:[]}):'').replace('Ultimate. ','')}${a.lvl?' Unlocks at level 3.':''}</li>`).join(''); }
+function showStart(){
+  let saved=null; try{ saved=localStorage.getItem(SAVE_KEY); }catch(e){}
+  $('#sheet').className='sheet';
+  $('#sheet').innerHTML=`
+    <p class="title">Hexfall</p>
+    <p class="tagline">Lanes & Legions</p>
+    <p>Command the Kingdom of Aster against the Ashfang Horde. Gather gold and lumber, raise buildings and research, lead your army across a hex battlefield where terrain and the time of day decide fights, and guide a champion down three lanes of marching minions. Destroy the Horde’s Keep to win.</p>
+    <h3>Choose your champion</h3>
+    <div class="champs">
+      ${['warden','sera'].map(k=>`<button class="champ" data-champ="${k}" aria-pressed="${UI.champPick===k}">
+        <div class="top"><span>${DEF[k].icon}</span><div><h4>${DEF[k].name}</h4><div class="role">${DEF[k].role}, ${DEF[k].hp} HP</div></div></div>
+        <ol>${abilitySummary(k)}</ol></button>`).join('')}
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="begin">Begin battle</button>
+      ${saved?'<button class="btn" id="cont">Continue saved battle</button>':''}
+      <button class="btn" id="howto">How to play</button>
+    </div>`;
+  $('#sheet').querySelectorAll('[data-champ]').forEach(b=>b.onclick=()=>{ UI.champPick=b.dataset.champ; $('#sheet').querySelectorAll('[data-champ]').forEach(x=>x.setAttribute('aria-pressed',x===b)); });
+  $('#begin').onclick=()=>{ closeModal(); startGame(); };
+  if(saved) $('#cont').onclick=()=>{ try{ deserialize(saved); closeModal(); boot(); toast(`Round ${G.round}: your turn`); }catch(e){ toast('That save could not be loaded'); } };
+  $('#howto').onclick=()=>showHelp(true);
+  openModal(); $('#begin').focus();
+}
+function showHelp(fromStart){
+  $('#sheet').className='sheet';
+  $('#sheet').innerHTML=`<div class="help">
+    <p class="title" style="font-size:44px">How to play</p>
+    <h3>Winning</h3>
+    <p>Destroy the Horde’s Keep on the right side of the map. Each Keep is shielded until at least one of its three lane towers falls.</p>
+    <h3>Your turn</h3>
+    <ul class="plain">
+      <li>Select a unit to see where it can move (light hexes). Enemies it can reach are outlined in red; click one to see the odds and attack.</li>
+      <li>Each unit can move and make one attack per turn. Moving next to an enemy soldier or champion stops your movement (zone of control).</li>
+      <li>Select your Keep to train units, place buildings and pick research.</li>
+      <li>Press End turn (or Enter) when you are done. Your minions then march, your towers fire, and the Horde moves.</li>
+    </ul>
+    <h3>Combat</h3>
+    <p>Each attack is a series of strikes. Every strike hits with a chance of 100% minus the defender’s terrain defense, so forests (60%) and hills (50%) protect well and water (20%) does not. Defenders strike back with the same kind of weapon, which is why archers are safe against melee units. Units gain experience and are promoted, gaining health and damage.</p>
+    <h3>Day and night</h3>
+    <p>Time advances every round. Kingdom units fight 25% harder in daylight and 25% weaker at night; the Horde is the reverse. Plan your pushes around the clock at the top.</p>
+    <h3>Economy</h3>
+    <p>Your Keep earns 8 gold a turn. Park a worker on a gold mine for 8 more, or in a forest for 4 lumber. Lumber mills earn more beside forests, markets earn more beside buildings.</p>
+    <h3>Lanes, minions and camps</h3>
+    <p>Every three rounds each Keep sends minions down the top, middle and bottom roads. They fight on their own. Land the killing blow on enemy minions with your champion for bonus gold. Jungle camps between the lanes give gold; the River drake grants your army +1 damage, and the Stone golem gives gold and lumber.</p>
+    <h3>Your champion</h3>
+    <p>Your champion levels up from kills nearby, uses abilities with the Q, W, E and R keys, and buys gear while standing next to your Keep, which also heals it quickly. If it falls, it returns after three turns.</p>
+    <h3>Shortcuts</h3>
+    <ul class="plain"><li>Enter: end turn. Esc: cancel. Tab or Space: next ready unit. C: champion. K: Keep. H: this help.</li><li>Drag to pan, scroll or pinch to zoom.</li></ul>
+    <div class="actions"><button class="btn primary" id="closeHelp">${fromStart?'Back':'Close'}</button></div></div>`;
+  openModal();
+  $('#closeHelp').onclick=()=>{ if(fromStart) showStart(); else closeModal(); };
+}
+$('#helpBtn').onclick=()=>showHelp(false);
+
+/* ---------- boot ---------- */
+function save(){ try{ localStorage.setItem(SAVE_KEY, serialize()); }catch(e){} }
+function boot(){
+  checkOver.shown=false; UI.sel=null; UI.tile=null; UI.mode=null; UI.busy=false; fx=[]; vis=new Map();
+  buildTerrain(); resize(); fitCam();
+  const ch=champOf('blue'); if(ch){ UI.sel=ch.id; if(cw()<900) centerOn(ch.c,ch.r); }
+  flushEvents(); refresh();
+}
+function startGame(){ newGame(UI.champPick); boot(); save(); toast('Round 1: your turn'); }
+new ResizeObserver(()=>{ if(G){ resize(); clampCam(); } }).observe($('#stage'));
+requestAnimationFrame(draw);
+showStart();
+
+</script>
+</body>
+</html>
